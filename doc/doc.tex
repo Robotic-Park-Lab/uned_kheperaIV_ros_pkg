@@ -1,0 +1,284 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage{graphicx}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage[latin1]{inputenc}
+\usepackage{a4wide}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{eqnarray}
+\usepackage{epstopdf}
+\usepackage{subfigure}
+\usepackage{natbib}
+\usepackage{algorithm}
+\usepackage{hyperref}
+\usepackage{multirow}
+
+\usepackage{amsfonts}  % For \mathbb
+\usepackage{bm}   % command \bm
+
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset { %
+    language=C++,
+    backgroundcolor=\color{black!5}, % set backgroundcolor
+    basicstyle=\footnotesize,% basic font setting
+    keywordstyle=\color{blue}
+    commentstyle=\color{red},
+}
+
+\begin{document}
+
+\title{Khepera IV - ROS (\texttt{uned\_kheperaIV\_ros\_pkg})}
+\author{Francisco J. Mañas-Álvarez}     
+\date{\today}
+\maketitle
+\tableofcontents
+\newpage
+
+% -------------------------------------
+\section{Introducción}
+% -------------------------------------
+Este repositorio\footnote{Github: \url{https://github.com/FranciscoJManasAlvarez/uned_crazyflie_ros_pkg}} contiene los paquetes de ROS y ficheros de configuración para la teleoperación y simulación del dron crazyflie 2.1 en ROS, Gazebo y Matlab. Se busca obtener una herramienta Hardware-in-the-Loop que sea facilmente escalable y mantenible. A partir de esta herramienta, se pretende integrar estos robots en un sistema distribuido mayor con más variedad de robots.
+
+\subsection{Estructura}
+
+\begin{itemize}
+\item\textbf{doc.} Contiene un fichero \textit{.tex} que aborda más en detalle toda la información relacionada con el repositorio: esquemas de ROS, búsquedas bibliográficas, enlaces de interés, etc.
+
+\item\textbf{scripts.} Contiene aquellos ficheros auxiliares que no forman parte de ningún paquete de ROS. Por ejemplo, ficheros \textit{.sh} para automatizar procesos repetitivos como la conversión de los ficheros \textit{.bag} a txt o los scripts de Matlab para representar datasets.
+
+%\item\textbf{submodules.} En este directorio están vinculados otros repositorios que se reutilizan, o se toman de base, para tareas ya abordadas por otros usuarios.
+
+%\item\textbf{uned\_kheperaIV\_config.} Paquete de ROS. Contiene aquellos elementos auxiliares para la configuración del entorno, así como los \textit{.launch} para la ejecución en bloque de las diferentes estructuras del sistema.
+
+%\item\textbf{uned\_kheperaIV\_robot.} Paquete de ROS. Comprende los nodos propios desarrollados para la integración de robots en el sistema. Incluye toda la información asociada para su correcta puesta en marcha.
+
+%\item\textbf{uned\_kheperaIV\_test.} Paquete de ROS. Paquete en el que se incluyen todos los elementos destinados a realizar comprobaciones en el sistema de forma rápida. 
+\end{itemize}
+
+\section{Khepera IV}
+El Khepera IV, figura \ref{fig:khepera_IV}, se trata de un robot diferencial compacto. Su diseño está especialmente pensado para vuelo en interiores. A continuación se detallan sus especificaciones técnicas, disponibles también en la web del fabricante K-team\footnote{Khepera. K-team: \url{https://www.k-team.com/khepera-iv}}. También se encuentra disponible online el manual de usuario\footnote{Manual Khepera: \url{http://ftp.k-team.com/KheperaIV/software/Gumstix\%20COM\%20Y/UserManual/Khepera\%20IV\%20User\%20Manual\%204.x.pdf}}.
+\begin{figure}[H]
+  \centering
+    \includegraphics[width=0.5\textwidth]{figs/khepera_IV.png}
+  \caption{Khepera IV.}
+  \label{fig:khepera_IV}
+\end{figure}
+\subsection{Características}
+\subsubsection{Especificaciones mecánicas}
+\begin{itemize}
+\item Peso: $540[g]$
+\item Carga Máxima: $2000[g]$
+\item Dimensiones: $140\varnothing x58[mm]$
+\end{itemize}
+\subsubsection{Hardware}
+\begin{itemize}
+\item Núcleo de Linux que se ejecuta en un procesador ARM Cortex-A8 de 800 MHz con núcleo DSP de punto fijo C64x y un microcontrolador adicional para la gestión de periféricos.
+\item RAM 256 MB
+\item Flash 512MB más 8GB adicionales para datos
+\item Compilador GNU C / C ++, para aplicaciones nativas integradas.
+\item Admite Python 2.7.9
+\end{itemize}
+\subsubsection{Sensores}
+\begin{itemize}
+\item 12 sensores infrarrojos (8 de proximidad y luz ambiental y 4 de proximidad al suelo para aplicaciones de seguimiento de línea y prevención de caídas) con un alcance desde 2 mm hasta 25 cm. Modelo: TCRT5000 de Vishay Telefunken\footnote{TCRT5000 Datasheet: \url{https://datasheet.octopart.com/TCRT5000-Vishay-datasheet-547230.pdf}}.
+\item 5 sensores de ultrasonido con rango de 25 cm a 2 metros. Tiempo de lectura 10ms. Modelo: 400PT12B de Prowave\footnote{400PT12B Datasheet: \url{http://www.prowave.com.tw/pdf/T400PT12.PDF}}.
+\item Acelerómetro y Giroscopio de 3 ejes. Modelo: LSM330DLC de STMicroelectronics\footnote{LSM330DLC Datasheet: \url{https://www.mouser.es/datasheet/2/389/en_DM00037200-1920927.pdf}}.
+\item Micrófono integrado ($100-10000[Hz]$). Modelo: PU0414HR5H-SB de Knowles\footnote{PU0414HR5H-SB Datasheet: \url{https://datasheetspdf.com/pdf-file/916686/KnowlesElectronics/SPU0414HR5H-SB/1}}.
+\item Cámara a color integrada (752x480 píxeles, 30FPS). Distancia focal de 2.1mm. Campo de visión: 131º horizontal, 101º vertical. 
+\end{itemize}
+\subsubsection{Alimentación y batería}
+\begin{itemize}
+\item Alimentación: 9 V a 2,5 A
+\item Autonomía: 7 horas aprox.
+\item Batería:  polímero de litio de 7,4 V, 3400 mAh
+\end{itemize}
+\subsubsection{Comunicaciones}
+\begin{itemize}
+\item 1x host USB 2.0 (500mA)
+\item 1x dispositivo USB 2.0
+\item WiFi 802.11 b / g
+\item Bluetooth 2.0 EDR
+\item Se pueden agregar módulos de expansión al robot usando el bus KB-250.
+\end{itemize}
+\subsubsection{Movimiento}
+\begin{itemize}
+\item 2 motores DC con escobillas con codificadores incrementales (aproximadamente 147 pulsos por mm de movimiento del robot) y caja de cambios
+\item Máx. 1 m / s en lazo abierto y 0,8 m / s con controlador de velocidad PID predeterminado de fábrica. Mínimo 0,003 m / s con controlador de velocidad PID predeterminado de fábrica
+\end{itemize}
+\subsubsection{Otros}
+\begin{itemize}
+\item 3 imanes situados en la parte superior
+\item 3 LEDs RGB
+\end{itemize}
+\subsection{Proyectos anteriores}
+En este apartado se describen los trabajos ya realizados sobre khepera IV que se han consultado y reutilizado parcialmente para la herramienta desarrollada.
+
+\subsubsection*{Proyectos ...}
+\textcolor{red}{TO-DO} 
+
+
+\subsection{Modelado}
+\textcolor{red}{TO-DO, \citep{barrientos2007fundamentos}.} 
+
+\section{Control}
+En esta sección se documentarán los controladores propuestos y operativos que se han implementado, así como sus resultados en Matlab, Gazebo y experimentos reales. A continuación se muestra el esquema de control genérico implementado.
+
+\subsection{PID continuo}
+\textcolor{red}{TO-DO} 
+\begin{equation}
+C\left(s\right) = \frac{U\left(s\right)}{E\left(s\right)}=K_{p}+K_{i}\cdot\frac{1}{s}+K_{d}\cdot\frac{N}{1+N\cdot\frac{1}{s}}
+\label{eq:pid_continuous}
+\end{equation}
+ 
+\subsection{PID discreto}
+En el caso del controlador PID discreto, se toma como referencia los valores del caso continuo. \textcolor{red}{TO-DO}. Para la discretización de los controladores, se ha estimado que la aproximación más adecuada es la trapezoidal (\textit{Tustin's approximation} ó \textit{the bilinear transformation}) \citep{wittenmark2002computer}, ecuación \ref{eq:aprox_trapezoidal}.
+
+\begin{equation}
+U\left(s\right)=\left(K_{p}+K_{i}\cdot\frac{1}{s}+K_{d}\cdot\frac{N}{1+N\cdot\frac{1}{s}}\right)E\left(s\right)\rightarrow u\left(t\right)=K_{p}e\left(t\right)+K_{i}\int e\left(t\right)dt+K_{d}\dfrac{de\left(t\right)}{dt}
+\label{eq:pid_s2t}
+\end{equation}
+\begin{equation}
+s=\frac{2}{T}\frac{1-z^{-1}}{1+z^{-1}}\rightarrow z=e^{sT}\approx\frac{1+(sT/2)}{1-(sT/2)}
+\label{eq:aprox_trapezoidal}
+\end{equation}
+\begin{equation}
+C\left(z\right)=\frac{U\left(z\right)}{E\left(z\right)}=\frac{q_{0}+q_{1}z^{-1}+q_{2}z^{-2}}{1-z^{-1}}
+\begin{cases}
+q_{0} & = K_{p}+\frac{K_{i}T}{2}+\frac{K_{d}}{T} \\
+q_{1} & = -K_{p}+\frac{K_{i}T}{2}-2\frac{K_{d}}{T} \\
+q_{2} & = \frac{K_{d}}{T}
+\end{cases}
+\label{eq:pid_Z}
+\end{equation}
+
+\subsection{MPC}
+\textcolor{red}{TO-DO} 
+
+\subsection{Control basado en eventos}
+\textcolor{red}{TO-DO} 
+
+% -------------------------------------
+\section{Instalación}
+% -------------------------------------
+\textcolor{red}{TO-DO}
+
+Se plantea inicialmente el desarrollo del sistema distribuido en ROS. El objetivo de desarrollo de la plataforma es implementar todo el sistema en \href{http://wiki.ros.org/noetic}{ROS Noetic Ninjemys} y \href{https://releases.ubuntu.com/20.04/}{Ubuntu 20.04 LTS (Focal Fossa)} a fin de prolongar el mantenimiento y vigencia de la plataforma. Ambos tienen el mantenimiento previsto de 5 años. No obstante, el lanzamiento de estas versiones se ha realizado en el año 2020, por lo que, junto con el fin del mantenimiento de la versión 2.7 de Python, implica que mucho del material ya desarrollado para versiones anteriores, no se puede migrar con facilidad. Por tanto, se plantea la reutilización de gran parte del material ya disponible en la web, trabajando con parte del sistema en la actual y otra parte en la versión anterior, \href{http://wiki.ros.org/melodic}{ROS Melodic Morenia} y \href{https://releases.ubuntu.com/18.04/}{Ubuntu 18.04 LTS (Bionic Beaver)}.
+
+\subsection{ROS}
+Lo primero debe ser tener instalada la correspondiente versión de ROS para el sistema operativo del dispositivo (\href{http://wiki.ros.org/noetic/Installation/}{Noetic}, \href{http://wiki.ros.org/melodic/Installation/}{Melodic}). La máquina donde se ejecuten los paquetes reutilizados debe trabajar con ROS Melodic. No hay problema de compatibilidad en la interconexión de distintas máquinas siempre que los topics no presenten incompatibilidades entre versiones.
+
+\subsection{rosbridge\_suite}
+La conexión común de todos los componentes de la red de ROS se realiza a través del paquete rosbridge\_suite, instalado mediante el comando sudo apt-get install ros-<rosdistro>-rosbridge-suite (debe estar instalado previamente ROS en el dispositivo). Para la correcta identificación y conexión de cada máquina, se debe configurar en cada una los parámetros \textit{ROS\_MASTER\_URI} y \textit{ROS\_HOSTNAME}, dados por la ip de cada dispositivo.
+
+\begin{lstlisting}
+sudo nano ~/.bashrc
+...
+export ROS_MASTER_URI = http://xxx.xxx.x.xx:11311
+export ROS_HOSTNAME = xxx.xxx.x.xx
+\end{lstlisting}
+
+Para el lanzamiento del paquete, se emplea el comando 
+\begin{lstlisting}
+roslaunch rosbridge_server rosbridge_websocket.launch
+\end{lstlisting}
+
+\subsection{Matlab}
+Matlab debe disponer del toolbox de ROS instalado. En este caso, se trabaja con la versión de Matlab 2020b.
+
+Se deben configurar los parámetros \textit{ROS\_MASTER\_URI} y \textit{ROS\_HOSTNAME} para que pueda conectarse a la red que se ejecute en el dispositivo principal (ROS\_MASTER\_URI) y sea identificado dentro de la red. Estas acciones se llevan a cabo en línea de comandos mediante las instrucciones:
+\begin{lstlisting}
+setenv('ROS_MASTER_URI','http://192.168.1.xx:11311')
+setenv('ROS_HOSTNAME','192.168.1.xx')
+\end{lstlisting}
+
+La versión de Python que emplea el toolbox de Matlab es la 2.7. En principio no supone un problema porque no influye en el desempeño del resto de la red de dispositivos. Se puede descargar esta versión desde la web oficial. Se debe configurar la versión de Python Matlab mediante el comando 
+\begin{lstlisting}
+pyversion folder 
+\end{lstlisting}
+donde \textit{folder} es el directorio donde se ha instalado previamente la versión de python. Esto se emplea para integrar posteriormente los mensajes no estándares que se emplean en el proyecto.
+El compilador que debe estar fijado en Matlab debe ser Microsoft Visual C++ 2017. Para realizar esta comprobación se puede ejecutar el comando
+\begin{lstlisting}
+mex -setup cpp
+\end{lstlisting}
+
+Una vez asegurada la versión de python y del compilador se deben agregar las nuevas tipologías de mensajes al directorio de Matlab. Para ello, se deben ejecutar los siguientes comandos:
+\begin{lstlisting}
+folderpath = 'C:\folder con los nuevos mensajes\'
+rosgenmsg(folderpath)
+addpath('C:\folder con los nuevos mensajes\matlab_msg_gen_ros1\win64\install\m')
+savepath
+clear classes
+rehash toolboxcache
+rosmsg list
+\end{lstlisting}
+
+Recordar ejecutar siempre el comando rosshutdown al final del script para evitar dejar el nodo en el aire y al proncipio por si se nos ha olvidado cerrarlo anteriormente, que no de problemas.
+
+\subsection{Dependencias}
+\textcolor{red}{TO-DO} 
+\begin{itemize}
+\item \textbf{Octomap}. TO-DO: Especificar los paquetes que dependen
+\begin{lstlisting}
+sudo apt-get install ros-<rosdistro>-octomap
+\end{lstlisting}
+
+\item \textbf{Xacro}. TO-DO: Especificar los paquetes que dependen
+\begin{lstlisting}
+sudo apt-get install ros-<rosdistro>-xacro 
+\end{lstlisting}
+
+\item \textbf{Joy}. Paquete para realizar la lectura del joystick para teleoperación.
+\begin{lstlisting}
+sudo apt-get install ros-<rosdistro>-joystick-drivers
+\end{lstlisting}
+
+\item \textbf{mav\_comm}. TO-DO. Este paquete se emplea como complemento a gran parte de los paquetes ya desarrollados de Crazyflie y es compatible con ambas versiones de ROS y Ubuntu por lo que se puede alojar en el espacio de trabajo del dispositivo y compilarlo como cualquier otro paquete.
+\end{itemize}
+
+\subsection{Ubuntu 20.04 - ROS Noetic Ninjemys}
+La configuración del entorno de trabajo para el paquete desarrollado se muestra a continuación.
+\begin{lstlisting}
+mkdir -p khepera_ws/src
+cd khepera_ws/src
+git clone https://github.com/FranciscoJManasAlvarez/uned_kheperaIV_ros_pkg
+cd uned_kheperaIV_ros_pkg
+git submodules init
+git submodules update
+cd ..
+git clone https://github.com/ethz-asl/mav_comm.git
+cd ../..
+catkin build
+echo "source devel/setup.bash" >> ~/.bashrc
+\end{lstlisting}
+Este paquete compila correctamente en ambas versiones de ROS y Ubuntu.
+
+
+% -------------------------------------
+\section{Simulador}
+% -------------------------------------
+\textcolor{red}{TO-DO}
+
+\subsection{C++}
+\textcolor{red}{TO-DO}
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin euismod, erat ultrices hendrerit consequat, ligula nisi semper felis, id euismod ex erat eget diam. Vestibulum ut leo condimentum, ullamcorper orci id, suscipit arcu. Suspendisse suscipit purus tincidunt ex eleifend, sed tristique eros maximus. Donec vitae nisl congue, gravida orci vitae, consectetur sapien. Interdum et malesuada fames ac ante ipsum primis in faucibus. Duis ante orci, blandit rutrum urna in, mollis commodo lorem. Donec blandit, velit sed aliquam auctor, mi nunc lobortis arcu, in imperdiet sapien est vitae libero. Donec tincidunt quam ipsum, vitae rhoncus dolor efficitur id. Proin laoreet, ipsum quis vehicula condimentum, ex ipsum tincidunt est, bibendum iaculis enim est vel risus.
+
+\subsection{Matlab}
+\textcolor{red}{TO-DO}
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin euismod, erat ultrices hendrerit consequat, ligula nisi semper felis, id euismod ex erat eget diam. Vestibulum ut leo condimentum, ullamcorper orci id, suscipit arcu. Suspendisse suscipit purus tincidunt ex eleifend, sed tristique eros maximus. Donec vitae nisl congue, gravida orci vitae, consectetur sapien. Interdum et malesuada fames ac ante ipsum primis in faucibus. Duis ante orci, blandit rutrum urna in, mollis commodo lorem. Donec blandit, velit sed aliquam auctor, mi nunc lobortis arcu, in imperdiet sapien est vitae libero. Donec tincidunt quam ipsum, vitae rhoncus dolor efficitur id. Proin laoreet, ipsum quis vehicula condimentum, ex ipsum tincidunt est, bibendum iaculis enim est vel risus.
+
+In hac habitasse platea dictumst. Aenean justo tortor, congue non congue ut, egestas a sem. Mauris egestas diam id nulla dictum eleifend. Nulla aliquam vulputate dapibus. Morbi tellus dolor, ornare sed iaculis ac, sodales sed nisl. Sed elementum, ligula eget venenatis congue, nisi nulla finibus mauris, sed hendrerit dui odio et massa. Cras nec enim ut nunc rhoncus cursus. Vestibulum ex ipsum, commodo a dolor a, bibendum fermentum lacus. Praesent et ultricies sem. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. In iaculis elit eget mattis auctor. Duis vel gravida magna. Cras egestas cursus rutrum. Duis consectetur et ex et commodo. Suspendisse dignissim magna ac mi porta bibendum. Praesent sollicitudin aliquet malesuada.
+
+% -------------------------------------
+\section{Hardware-in-the-Loop}
+\textcolor{red}{TO-DO}
+
+%% ---------------------------------------------------------------
+%%                         BIBLIOGRAPHY
+%% ---------------------------------------------------------------
+\bibliographystyle{plain}
+\bibliography{refs}
+
+
+\end{document}
