@@ -120,7 +120,89 @@ En este apartado se describen los trabajos ya realizados sobre khepera IV que se
 
 
 \subsection{Modelado}
-\textcolor{red}{TO-DO, \citep{barrientos2007fundamentos}.} 
+El modelado de los Khepera IV se realiza atendiendo tanto al enfoque dinámico como cinemático. El texto de referencia para determinar el modelado genérico de los robots de tipo diferencial se encuentra en el capítulo 2 de la tesis de Rafael Socas Gutiérrez \citep{socas2017estrategias}. Los Khepera, son robots móviles diferenciales con ruedas. Para mantener la estabilidad, disponen de dos esferas pasivas.
+
+\subsubsection*{Modelo cinemático}
+Este modelo determina el movimiento del robot a partir de sus características geométricas y sus restricciones. Se establecen las siguientes suposiciones consideradas en el modelado:
+\begin{itemize}
+\item Las ruedas giran sobre la superficie sin efectos de deslizamiento.
+\item El eje de giro del robot es perpendicular al plano X-Y
+\item El centro de gravedad se sitúa en el punto Q de la figura \textcolor{red}{X}
+\end{itemize}
+\textcolor{red}{TO-DO. Figura del esquema}
+
+Considerando $v_{r}$ como la velocidad lineal de la rueda derecha, $v_{l}$ como la velocidad lineal de la rueda izquierda y $L$ la distancia entre las ruedas, las velocidades lineales y angulares del robot se puede calcular según la ecuación \ref{eq:vel_robot}.
+\begin{equation}
+v_{Q}=\frac{1}{2}\left(v_{r}+v_{l}\right)~~~~;~~~~\dot{\varphi}=\frac{\left(v_{r}-v_{l}\right)}{L}
+\label{eq:vel_robot}
+\end{equation}
+
+Al partir del supuesto de ausencia de deslizamiento en las ruedas, las velocidades de cada rueda cumplen la relación:
+\begin{equation}
+v_{r}=r\cdot\dot{\theta}_{r}~~~~;~~~~v_{l}=r\cdot\dot{\theta}_{l}
+\label{eq:vel_l2a_robot}
+\end{equation}
+
+Conocidas estas relaciones, se puede determinar la velocidad en el plano X-Y.
+\begin{equation}
+\dot{x}_{Q}=\frac{r}{2}\left(\dot{\theta}_{r}\cdot\cos\left(\varphi\right)+\dot{\theta}_{l}\cdot\cos\left(\varphi\right)\right)
+\label{eq:vel_x}
+\end{equation}
+\begin{equation}
+\dot{y}_{Q}=\frac{r}{2}\left(\dot{\theta}_{r}\cdot\sin\left(\varphi\right)+\dot{\theta}_{l}\cdot\sin\left(\varphi\right)\right)
+\label{eq:vel_y}
+\end{equation}
+\begin{equation}
+\dot{\varphi}=\frac{r}{L}\left(\dot{\theta}_{r}-\dot{\theta}_{l}\right)
+\label{eq:vel_w}
+\end{equation}
+
+De esta forma, el \textbf{modelo cinemático diferencial directo} se puede expresar como:
+\begin{equation}
+\dot{p}= J\dot{q}\rightarrow \dot{p}= \begin{pmatrix}
+\frac{r}{2}\cos\left(\varphi\right)\\
+\frac{r}{2}\sin\left(\varphi\right)\\
+\frac{r}{L}
+\end{pmatrix}\cdot\dot{\theta}_{r}+\begin{pmatrix}
+\frac{r}{2}\cos\left(\varphi\right)\\
+\frac{r}{2}\sin\left(\varphi\right)\\
+-\frac{r}{L}
+\end{pmatrix}\cdot\dot{\theta}_{l}
+\label{eq:robot_mcdd}
+\end{equation}
+donde $\dot{p}=\begin{pmatrix} \dot{x}_{Q}\\ \dot{y}_{Q}\\ \dot{\varphi}\end{pmatrix}$, $\dot{q}=\begin{pmatrix} \dot{\theta}_{r}\\ \dot{\theta}_{l}\end{pmatrix}$ y $J$ es el jacobiano del robot diferencial.
+
+Puesto que la matriz Jacobiana no es invertible, para obtener $\dot{q}$ a partir de modelo cinemático diferencial directo, se debe emplear la matriz pseudoinversa (de Moore-Penrose) que establece su valor según la siguiente expresión:
+\begin{equation}
+J^{+}=\left(J^{T}J\right)^{-1}J^{T}
+\label{eq:J_Moore-Penrose}
+\end{equation}
+
+Otra forma de calcular $J^{+}$ se puede hacer despejando debidamente de las ecuaciones de que relacionan la velocidad lineal de cada rueda con la velocidad del dron.
+\begin{equation}
+\begin{matrix}
+r\dot{\theta}_{r}=\dot{x}_{Q}\cos\left(\varphi\right)+\dot{y}_{Q}\sin\left(\varphi\right)+\frac{L}{2}\dot{\varphi} \\
+r\dot{\theta}_{l}=\dot{x}_{Q}\cos\left(\varphi\right)+\dot{y}_{Q}\sin\left(\varphi\right)-\frac{L}{2}\dot{\varphi}
+\end{matrix}
+\label{eq:robot_mcdi_1}
+\end{equation}
+
+De esta forma, el \textbf{método cinemático diferencial inverso} se obtiene según la siguiente expresión.
+\begin{equation}
+\dot{q}= J^{+}\dot{p}\rightarrow \begin{pmatrix} \dot{\theta}_{r}\\ \dot{\theta}_{l}\end{pmatrix}= \frac{1}{r}\begin{pmatrix}
+\cos\left(\varphi\right) & \sin\left(\varphi\right) & \frac{L}{2}\\
+\cos\left(\varphi\right) & \sin\left(\varphi\right) & -\frac{L}{2}\\
+\end{pmatrix}\begin{pmatrix} \dot{x}_{Q}\\ \dot{y}_{Q}\\ \dot{\varphi}\end{pmatrix}
+\label{eq:robot_mcdi_2}
+\end{equation}
+
+Finalmente, el radio de curvatura instantáneo R se obtiene mediante la siguiente expresión. 
+\begin{equation}
+R=\frac{v_Q}{\dot{\varphi}}=\frac{L}{2}\left(\frac{v_r+v_l}{v_r-v_l}\right)
+\end{equation}
+
+\subsubsection{Modelo dinámico}
+\textcolor{red}{TO-DO} 
 
 \section{Control}
 En esta sección se documentarán los controladores propuestos y operativos que se han implementado, así como sus resultados en Matlab, Gazebo y experimentos reales. A continuación se muestra el esquema de control genérico implementado.
