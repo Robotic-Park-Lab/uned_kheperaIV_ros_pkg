@@ -19,8 +19,16 @@ include_directories(
   ${${PROJECT_NAME}_SOURCE_DIR}/include
 )
 
+add_executable(eventbased_pid_position_controller src/eventbased_pid_position_controller.cpp)
+ament_target_dependencies(eventbased_pid_position_controller
+  rclcpp std_msgs rclpy sensor_msgs geometry_msgs)
+
 add_executable(periodic_pid_position_controller src/periodic_pid_position_controller.cpp)
 ament_target_dependencies(periodic_pid_position_controller
+  rclcpp std_msgs rclpy sensor_msgs geometry_msgs)
+
+add_executable(event_triggering src/event_triggering.cpp)
+ament_target_dependencies(event_triggering
   rclcpp std_msgs rclpy sensor_msgs geometry_msgs)
 
 install(DIRECTORY include/${PROJECT_NAME}/
