@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>uned_kheperaIV_controllers</name>
+  <name>uned_kheperaiv_config</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="fma527@ual.es">kiko-hp-omen</maintainer>
+  <maintainer email="fma527@ual.es">Francisco José Mañas Álvarez</maintainer>
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
