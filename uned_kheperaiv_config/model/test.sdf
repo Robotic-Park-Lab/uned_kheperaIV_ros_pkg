@@ -1,0 +1,924 @@
+<?xml version='1.0'?>
+<!--
+  Gazebo ROS differential drive plugin
+
+  Try sending commands:
+
+    ros2 topic pub /khepera_IV/cmd_vel geometry_msgs/Twist '{linear: {x: 0.05}}' -1
+
+    ros2 topic pub /khepera_IV/cmd_vel geometry_msgs/Twist '{angular: {z: 0.1}}' -1
+
+  Try listening to odometry:
+
+    ros2 topic echo /demo/odom
+
+  Try listening to TF:
+
+    ros2 run tf2_ros tf2_echo odom chassis
+
+    ros2 run tf2_ros tf2_echo chassis right_wheel
+
+    ros2 run tf2_ros tf2_echo chassis left_wheel
+-->
+<sdf version='1.6'>
+  <model name='Khepera_IV'>
+    <static>false</static>
+    <pose>0 0 0 0 -0 0</pose>
+
+    <link name='chassis'>
+      <pose>0 0 0.0 0 -0 0</pose>
+      <inertial>
+        <mass>0.5</mass>
+        <inertia>
+          <ixx>0.0007365</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0007365</iyy>
+          <iyz>0</iyz>
+          <izz>0.001239</izz>
+        </inertia>
+      </inertial>
+
+      <visual name='visual'>
+        <geometry>
+          <mesh>
+            <uri>model://khepera_IV/Empty_robot.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name='collision'>
+        <geometry>
+          <mesh>
+            <uri>model://khepera_IV/Empty_robot.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </collision>
+
+      <sensor type="gpu_ray" name="ultrasonic_sensor_0">
+        <pose>0.0 0.0645 0.045 0.0 0 1.5707</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.25</min>
+            <max>2.5</max>
+            <resolution>0.02</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ultrasonic_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=range_0</remapping>
+          </ros>
+          <radiation_type>ultrasound</radiation_type>
+          <output_type>sensor_msgs/Range</output_type>
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="ultrasonic_sensor_1">
+        <pose>0.04561 0.04561 0.045 0.0 0 0.7853</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.25</min>
+            <max>2.5</max>
+            <resolution>0.02</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ultrasonic_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=range_1</remapping>
+          </ros>
+          <radiation_type>ultrasound</radiation_type>
+          <output_type>sensor_msgs/Range</output_type>
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="ultrasonic_sensor_2">
+        <pose>0.0645 0.0 0.045 0.0 0 0</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.25</min>
+            <max>2.5</max>
+            <resolution>0.02</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ultrasonic_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=range_2</remapping>
+          </ros>
+          <radiation_type>ultrasound</radiation_type>
+          <output_type>sensor_msgs/Range</output_type>
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="ultrasonic_sensor_3">
+        <pose>0.04561 -0.04561 0.045 0.0 0 -0.7853</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.25</min>
+            <max>2.5</max>
+            <resolution>0.02</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ultrasonic_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=range_3</remapping>
+          </ros>
+          <radiation_type>ultrasound</radiation_type>
+          <output_type>sensor_msgs/Range</output_type>
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="ultrasonic_sensor_4">
+        <pose>0.0 -0.0645 0.045 0.0 0 -1.5707</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.25</min>
+            <max>2.5</max>
+            <resolution>0.02</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ultrasonic_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=range_4</remapping>
+          </ros>
+          <radiation_type>ultrasound</radiation_type>
+          <output_type>sensor_msgs/Range</output_type>
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_0">
+        <pose>-0.04978 0.04978 0.01547 0.0 0 2.3562</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_0</remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_1">
+        <pose>-0.0 0.0704 0.01547 0.0 0 1.5708</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_1</remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_2">
+        <pose>0.04978 0.04978 0.01547 0.0 0 0.7854</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_2
+            </remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_3">
+        <pose>0.0704 0.0 0.01547 0.0 0 0.0</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_3
+            </remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_4">
+        <pose>0.04978 -0.04978 0.01547 0.0 0 -0.7854</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_4
+            </remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_5">
+        <pose>-0.0 -0.0704 0.01547 0.0 0 -1.5708</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_5
+            </remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_6">
+        <pose>-0.04978 -0.04978 0.01547 0.0 0 -2.3562</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_6
+            </remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_7">
+        <pose>-0.0704 -0.0 0.01547 0.0 0 -3.1416</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_7
+            </remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_8">
+        <pose>0.019618 0.059522 0.0057 0.0 1.5708 -1.5707</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_8
+            </remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_9">
+        <pose>0.062921 0.010 0.0057 0.0 1.5708 0.0</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_9
+            </remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_10">
+        <pose>0.062921 -0.010 0.0057 0.0 1.5708 0.0</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_10
+            </remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+      <sensor type="gpu_ray" name="infrared_sensor_11">
+        <pose>0.019618 -0.059522 0.0057 0.0 1.5708 -1.5707</pose>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>20</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235</min_angle>
+              <max_angle>0.5235</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.002</min>
+            <max>0.25</max>
+            <resolution>0.02</resolution>
+          </range>
+          <!-- Using gazebo's noise instead of plugin's -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <!-- Using gazebo's update rate instead of plugin's -->
+         <always_on>1</always_on>
+         <visualize>true</visualize>
+        <update_rate>30</update_rate>
+        <plugin name="ir_sensors" filename="libgazebo_ros_ray_sensor.so">
+          <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
+          <ros>
+            <namespace>/khepera_IV</namespace>
+            <remapping>~/out:=ir_11
+            </remapping>
+          </ros>
+          <radiation_type>infrared</radiation_type>
+          <!-- Set output to sensor_msgs/Range to get same output type as gazebo_ros_range -->
+          <output_type>sensor_msgs/Range</output_type>
+          <!-- <frame_name> ommited, will default to range_link -->
+        </plugin>
+      </sensor>
+
+    </link>
+
+    <link name='left_wheel'>
+      <pose>0 0.0527 0.021 -1.57070 0 0</pose>
+      <inertial>
+        <mass>0.02</mass>
+        <inertia>
+          <ixx>0.000003</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.000003</iyy>
+          <iyz>0</iyz>
+          <izz>0.000003</izz>
+        </inertia>
+      </inertial>
+      <visual name='visual'>
+        <geometry>
+          <mesh>
+            <uri>model://khepera_IV/wheel.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name='collision'>
+        <geometry>
+          <mesh>
+            <uri>model://khepera_IV/wheel.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1</mu>
+              <mu2>1</mu2>
+              <slip1>0</slip1>
+              <slip2>0</slip2>
+            </ode>
+          </friction>
+          <contact>
+            <ode>
+              <soft_cfm>0</soft_cfm>
+              <soft_erp>0.2</soft_erp>
+              <kp>1e+13</kp>
+              <kd>1</kd>
+              <max_vel>0.01</max_vel>
+              <min_depth>0.01</min_depth>
+            </ode>
+          </contact>
+        </surface>
+      </collision>
+    </link>
+
+    <link name='right_wheel'>
+      <pose>0 -0.0527 0.021 -1.5707 0 0</pose>
+      <inertial>
+        <mass>0.02</mass>
+        <inertia>
+          <ixx>0.000003</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.000003</iyy>
+          <iyz>0</iyz>
+          <izz>0.000003</izz>
+        </inertia>
+      </inertial>
+      <visual name='visual'>
+        <geometry>
+          <mesh>
+            <uri>model://khepera_IV/wheel.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name='collision'>
+        <geometry>
+          <mesh>
+            <uri>model://khepera_IV/wheel.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1</mu>
+              <mu2>1</mu2>
+              <slip1>0</slip1>
+              <slip2>0</slip2>
+            </ode>
+          </friction>
+          <contact>
+            <ode>
+              <soft_cfm>0</soft_cfm>
+              <soft_erp>0.2</soft_erp>
+              <kp>1e+13</kp>
+              <kd>1</kd>
+              <max_vel>0.01</max_vel>
+              <min_depth>0.01</min_depth>
+            </ode>
+          </contact>
+        </surface>
+      </collision>
+    </link>
+
+    <link name='front_caster'>
+      <pose>0.05 0 0.006614 0 -0 0</pose>
+      <visual name='visual'>
+        <geometry>
+          <mesh>
+            <uri>model://khepera_IV/caster.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name='collision'>
+        <geometry>
+          <mesh>
+            <uri>model://khepera_IV/caster.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+
+    <link name='back_caster'>
+      <pose>-0.05 0 0.006614 0 -0 0</pose>
+      <visual name='visual'>
+        <geometry>
+          <mesh>
+            <uri>model://khepera_IV/caster.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name='collision'>
+        <geometry>
+          <mesh>
+            <uri>model://khepera_IV/caster.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+
+    <joint name='left_wheel_joint' type='revolute'>
+      <parent>chassis</parent>
+      <child>left_wheel</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1.79769e+308</lower>
+          <upper>1.79769e+308</upper>
+        </limit>
+      </axis>
+    </joint>
+
+    <joint name='right_wheel_joint' type='revolute'>
+      <parent>chassis</parent>
+      <child>right_wheel</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1.79769e+308</lower>
+          <upper>1.79769e+308</upper>
+        </limit>
+      </axis>
+    </joint>
+
+    <joint name='front_caster_wheel' type='ball'>
+      <parent>chassis</parent>
+      <child>front_caster</child>
+    </joint>
+
+    <joint name='back_caster_wheel' type='ball'>
+      <parent>chassis</parent>
+      <child>back_caster</child>
+    </joint>
+
+    <plugin name='diff_drive' filename='libgazebo_ros_diff_drive.so'>
+
+      <ros>
+        <namespace>/khepera_IV</namespace>
+        <remapping>cmd_vel:=cmd_vel</remapping>
+        <remapping>odom:=ground_truth</remapping>
+      </ros>
+
+      <!-- wheels -->
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+
+      <!-- kinematics -->
+      <wheel_separation>0.1054</wheel_separation>
+      <wheel_diameter>0.021</wheel_diameter>
+
+      <!-- limits -->
+      <max_wheel_torque>20</max_wheel_torque>
+      <max_wheel_acceleration>1.0</max_wheel_acceleration>
+
+      <!-- output -->
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>true</publish_odom_tf>
+      <publish_wheel_tf>true</publish_wheel_tf>
+
+      <odometry_frame>odom_demo</odometry_frame>
+      <robot_base_frame>chassis</robot_base_frame>
+      <odometry_source>world</odometry_source>
+
+    </plugin>
+
+  </model>
+
+</sdf>
