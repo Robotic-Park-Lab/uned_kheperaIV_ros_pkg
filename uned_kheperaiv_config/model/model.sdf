@@ -79,7 +79,7 @@
             <stddev>0.01</stddev>
           </noise>
         </ray>
-        <plugin name="range0" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="range" filename="libgazebo_ros_ray_sensor.so">
           <ros>
             <remapping>~/out:=range0</remapping>
           </ros>
@@ -112,7 +112,7 @@
             <stddev>0.01</stddev>
           </noise>
         </ray>
-        <plugin name="range1" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="range" filename="libgazebo_ros_ray_sensor.so">
           <ros>
             <remapping>~/out:=range1</remapping>
           </ros>
@@ -140,7 +140,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="range2" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="range" filename="libgazebo_ros_ray_sensor.so">
           <ros>
             <remapping>~/out:=range2</remapping>
           </ros>
@@ -168,7 +168,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="range3" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="range" filename="libgazebo_ros_ray_sensor.so">
           <ros>
             <remapping>~/out:=range3</remapping>
           </ros>
@@ -196,7 +196,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="range4" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="range" filename="libgazebo_ros_ray_sensor.so">
           <ros>
             <remapping>~/out:=range4</remapping>
           </ros>
@@ -225,7 +225,7 @@
           </range>
         </ray>
 
-        <plugin name="ir00" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir00</remapping>
@@ -256,7 +256,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir01" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir01</remapping>
@@ -287,7 +287,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir02" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir02</remapping>
@@ -318,7 +318,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir03" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir03</remapping>
@@ -349,7 +349,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir04" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir04</remapping>
@@ -380,7 +380,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir05" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir05</remapping>
@@ -411,7 +411,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir06" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir06</remapping>
@@ -442,7 +442,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir07" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir07</remapping>
@@ -473,7 +473,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir08" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir08</remapping>
@@ -504,7 +504,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir09" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir09</remapping>
@@ -535,7 +535,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir10" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir10</remapping>
@@ -566,7 +566,7 @@
             <resolution>0.02</resolution>
           </range>
         </ray>
-        <plugin name="ir11" filename="libgazebo_ros_ray_sensor.so">
+        <plugin name="ir" filename="libgazebo_ros_ray_sensor.so">
           <!-- Change namespace and output topic so published topic is /rrbot/laser/scan -->
           <ros>
             <remapping>~/out:=ir11</remapping>
