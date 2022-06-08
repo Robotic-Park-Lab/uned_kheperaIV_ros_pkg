@@ -8,9 +8,6 @@ bool PositionController::initialize(){
 	this->get_parameter("CONTROLLER_TYPE", m_controller_type);
 	this->get_parameter("ROBOT_ID", m_robot_id);
 	this->get_parameter("CONTROLLER_MODE", m_controller_mode);
-	this->get_parameter("X_POS", m_x_init);
-	this->get_parameter("Y_POS", m_y_init);
-	this->get_parameter("Z_POS", m_z_init);
 
   // Publisher:
 	// Referencias para los controladores PID Attitude y Rate
@@ -21,23 +18,41 @@ bool PositionController::initialize(){
 	// Reference:
   ref_pose_ = this->create_subscription<geometry_msgs::msg::Pose>("goal_pose", 10, std::bind(&PositionController::positionreferenceCallback, this, _1));
 
-  // Init values
-  ref_pose.position.x = m_x_init;
-	ref_pose.position.y = m_y_init;
-	ref_pose.position.z = m_z_init;
-	ref_pose.orientation.x = 0;
-	ref_pose.orientation.y = 0;
-	ref_pose.orientation.z = 0;
-	ref_pose.orientation.w = 1;
-  RCLCPP_INFO(this->get_logger(),"New Pose: x: %f \ty: %f \tz: %f", ref_pose.position.x, ref_pose.position.y, ref_pose.position.z);
-
   return true;
 }
 
 bool PositionController::iterate(){
-  RCLCPP_INFO_ONCE(this->get_logger(),"PositionController::iterate() ok.");
   RCLCPP_WARN_ONCE(this->get_logger(),"PositionController::iterate() In-Progress.");
-  
+  if (first_pose_received && first_ref_received) {
+    RCLCPP_INFO_ONCE(this->get_logger(),"PositionController::iterate() ok.");
+    // Ground Truth Yaw
+    // yaw (z-axis rotation)
+    double siny_cosp = 2 * (GT_pose.orientation.w * GT_pose.orientation.z + GT_pose.orientation.x * GT_pose.orientation.y);
+    double cosy_cosp = 1 - 2 * (GT_pose.orientation.y * GT_pose.orientation.y + GT_pose.orientation.z * GT_pose.orientation.z);
+    yaw_gt = std::atan2(siny_cosp, cosy_cosp); // * (180 / 3.14159265);
+
+    auto msg_cmd = geometry_msgs::msg::Twist();
+    // Errors
+    angle = std::atan2(ref_pose.position.y-GT_pose.position.y, ref_pose.position.x-GT_pose.position.x);
+    distance = std::sqrt(std::pow(ref_pose.position.x-GT_pose.position.x,2)+std::pow(ref_pose.position.y-GT_pose.position.y,2));
+
+    // Controller "A Khepera IV library for robotic control education using V-REP"
+    if(distance>0.05){
+      msg_cmd.angular.z = 1.0*std::sin(angle-yaw_gt);
+      msg_cmd.linear.x = 1.0*distance*std::cos(angle-yaw_gt);
+      if(msg_cmd.linear.x<0){
+        msg_cmd.linear.x = 0.0;
+      }
+    }
+    else{
+      msg_cmd.angular.z = 0.0;
+      msg_cmd.linear.x = 0.0;
+    }
+    
+    // Send command
+    RCLCPP_DEBUG(this->get_logger(),"Distance: %f \tAngle: %f \tGT_Yaw: %f \tW: %f", distance, angle, yaw_gt, msg_cmd.angular.z);
+    pub_cmd_->publish(msg_cmd);
+  }
   return true;
 }
 
@@ -61,10 +76,20 @@ int main(int argc, char ** argv){
 }
 
 void PositionController::gtposeCallback(const nav_msgs::msg::Odometry::SharedPtr msg){
-    GT_pose.pose = msg->pose;
+  auto msg_aux = geometry_msgs::msg::PoseWithCovariance();
+  msg_aux = msg->pose;
+  GT_pose = msg_aux.pose;
+
+  if(!first_pose_received){
+      RCLCPP_INFO(this->get_logger(),"Init Pose: x: %f \ty: %f \tz: %f", GT_pose.position.x, GT_pose.position.y, GT_pose.position.z);
+      first_pose_received = true;
+  }
 }
 
 void PositionController::positionreferenceCallback(const geometry_msgs::msg::Pose::SharedPtr msg){
     ref_pose.position = msg->position;
     ref_pose.orientation = msg->orientation;
+    if(!first_ref_received){
+      first_ref_received = true;
+    }
 }

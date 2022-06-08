@@ -18,6 +18,7 @@
 #include <geometry_msgs/msg/pose.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <geometry_msgs/msg/quaternion.hpp>
+#include <geometry_msgs/msg/pose_with_covariance.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 
 using namespace std::chrono_literals;
@@ -40,8 +41,10 @@ private:
   void positionreferenceCallback(const geometry_msgs::msg::Pose::SharedPtr msg);
 
   double m_x_init, m_y_init, m_z_init;
+  double distance, angle, yaw_gt;
+  bool first_pose_received, first_ref_received;
   std::string  m_controller_type, m_robot_id, m_controller_mode;
-  geometry_msgs::msg::Pose ref_pose;
-  nav_msgs::msg::Odometry GT_pose;
+  geometry_msgs::msg::Pose GT_pose, ref_pose;
+  // nav_msgs::msg::Odometry GT_pose;
 
 };

@@ -60,8 +60,10 @@ int main(int argc, char ** argv){
 }
 
 void PositionController::gtposeCallback(const nav_msgs::msg::Odometry::SharedPtr msg){
-    GT_pose.pose = msg->pose;
- }
+  auto msg_aux = geometry_msgs::msg::PoseWithCovariance();
+  msg_aux = msg->pose;
+  GT_pose = msg_aux.pose;
+}
 
 void PositionController::positionreferenceCallback(const geometry_msgs::msg::Pose::SharedPtr msg){
     ref_pose.position = msg->position;
