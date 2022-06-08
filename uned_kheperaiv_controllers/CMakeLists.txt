@@ -12,8 +12,9 @@ find_package(rclpy REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 
-ament_export_dependencies(rclcpp std_msgs rclpy sensor_msgs geometry_msgs Eigen3)
+ament_export_dependencies(rclcpp std_msgs rclpy sensor_msgs geometry_msgs nav_msgs)
 include_directories(
   include/${PROJECT_NAME}
   ${${PROJECT_NAME}_SOURCE_DIR}/include
@@ -21,15 +22,18 @@ include_directories(
 
 add_executable(eventbased_pid_position_controller src/eventbased_pid_position_controller.cpp)
 ament_target_dependencies(eventbased_pid_position_controller
-  rclcpp std_msgs rclpy sensor_msgs geometry_msgs)
+  rclcpp std_msgs rclpy sensor_msgs geometry_msgs nav_msgs)
 
 add_executable(periodic_pid_position_controller src/periodic_pid_position_controller.cpp)
 ament_target_dependencies(periodic_pid_position_controller
-  rclcpp std_msgs rclpy sensor_msgs geometry_msgs)
+  rclcpp std_msgs rclpy sensor_msgs geometry_msgs nav_msgs)
 
 add_executable(event_triggering src/event_triggering.cpp)
 ament_target_dependencies(event_triggering
-  rclcpp std_msgs rclpy sensor_msgs geometry_msgs)
+  rclcpp std_msgs rclpy sensor_msgs geometry_msgs nav_msgs)
+
+install(TARGETS eventbased_pid_position_controller periodic_pid_position_controller  event_triggering
+  DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION include)

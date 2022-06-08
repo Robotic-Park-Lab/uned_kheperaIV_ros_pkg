@@ -15,12 +15,11 @@ bool PositionController::initialize(){
 
   // Publisher:
 	// Referencias para los controladores PID Attitude y Rate
-  auto pub_omega_ = this->create_publisher<std_msgs::msg::Float64>("omega_signal",10);
-  auto pub_control_signal = this->create_publisher<std_msgs::msg::Float64MultiArray>("attitude_controller_ref", 10);
+  pub_cmd_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel",10);
 
   // Subscriber:
-	// Crazyflie Pose
-  GT_pose_ = this->create_subscription<geometry_msgs::msg::Pose>("ground_truth/pose", 10, std::bind(&PositionController::gtposeCallback, this, _1));
+	// Pose
+  GT_pose_ = this->create_subscription<nav_msgs::msg::Odometry>("ground_truth", 10, std::bind(&PositionController::gtposeCallback, this, _1));
 	// Reference:
   ref_pose_ = this->create_subscription<geometry_msgs::msg::Pose>("position_reference", 10, std::bind(&PositionController::positionreferenceCallback, this, _1));
 
@@ -38,7 +37,7 @@ bool PositionController::initialize(){
 }
 
 bool PositionController::iterate(){
-  RCLCPP_INFO(this->get_logger(),"TO-DO: Altitude Controller.");
+  RCLCPP_INFO_ONCE(this->get_logger(),"TO-DO: Position Controller.");
   return true;
 }
 
@@ -58,4 +57,13 @@ int main(int argc, char ** argv){
   } catch (std::exception &e){
 		RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Exception: %s",e.what());
 	}
+}
+
+void PositionController::gtposeCallback(const nav_msgs::msg::Odometry::SharedPtr msg){
+    GT_pose.pose = msg->pose;
+ }
+
+void PositionController::positionreferenceCallback(const geometry_msgs::msg::Pose::SharedPtr msg){
+    ref_pose.position = msg->position;
+    ref_pose.orientation = msg->orientation;
 }
