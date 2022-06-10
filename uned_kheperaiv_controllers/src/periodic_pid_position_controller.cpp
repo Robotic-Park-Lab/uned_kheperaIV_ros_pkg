@@ -33,9 +33,9 @@ bool PositionController::initialize(){
 }
 
 bool PositionController::iterate(){
-  RCLCPP_WARN_ONCE(this->get_logger(),"PositionController::iterate() In-Progress.");
+  RCLCPP_INFO_ONCE(this->get_logger(),"PositionController::iterate() ok.");
   if (first_pose_received && first_ref_received) {
-    RCLCPP_INFO_ONCE(this->get_logger(),"PositionController::iterate() ok.");
+    RCLCPP_INFO_ONCE(this->get_logger(), "PositionController::iterate(). Running ...");
     // Ground Truth Yaw
     // yaw (z-axis rotation)
     double siny_cosp = 2 * (GT_pose.orientation.w * GT_pose.orientation.z + GT_pose.orientation.x * GT_pose.orientation.y);
@@ -66,6 +66,7 @@ bool PositionController::iterate(){
     RCLCPP_DEBUG(this->get_logger(),"Distance: %f \tAngle: %f \tGT_Yaw: %f \tW: %f", distance, angle, yaw_gt, msg_cmd.angular.z);
     pub_cmd_->publish(msg_cmd);
   }
+
   return true;
 }
 

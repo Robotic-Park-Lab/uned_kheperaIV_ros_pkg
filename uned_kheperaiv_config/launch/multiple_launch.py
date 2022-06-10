@@ -48,6 +48,8 @@ def generate_launch_description():
                     {'use_sim_time': use_sim_time},
                     {"LKp": 1.0, "LKi": 0.0, "LKd": 0.0, "LTd": 0.0},
                     {"WKp": 1.0, "WKi": 0.0, "WKd": 0.0, "WTd": 0.0},
+                    {"Lco": 0.01, "Lai": 0.015},
+                    {"Wco": 0.01, "Wai": 0.015},
                 ]),
 
         
@@ -61,6 +63,8 @@ def generate_launch_description():
                     {'use_sim_time': use_sim_time},
                     {"LKp": 1.0, "LKi": 0.0, "LKd": 0.0, "LTd": 0.0},
                     {"WKp": 1.0, "WKi": 0.0, "WKd": 0.0, "WTd": 0.0},
+                    {"Lco": 0.01, "Lai": 0.015},
+                    {"Wco": 0.01, "Wai": 0.015},
                 ])
 
     ])

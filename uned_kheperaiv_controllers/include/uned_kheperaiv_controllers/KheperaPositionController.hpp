@@ -52,6 +52,10 @@ public:
     this->declare_parameter("WKi", 0.);
     this->declare_parameter("WKd", 0.);
     this->declare_parameter("WTd", 0.);
+    this->declare_parameter("Lco", 0.);
+    this->declare_parameter("Lai", 0.);
+    this->declare_parameter("Wco", 0.);
+    this->declare_parameter("Wai", 0.);
   }
 
   bool initialize();
@@ -78,6 +82,13 @@ private:
   geometry_msgs::msg::Pose GT_pose, ref_pose;
   // nav_msgs::msg::Odometry GT_pose;
 
+  // Event Based Control
+  bool events = false;
+  bool z_event, w_event;
+  struct threshold l_threshold, w_threshold;
+
   double pid_controller(struct pid_s &controller, double dt);
   struct pid_s init_controller(const char id[], double kp, double ki, double kd, double td, int nd, double upperlimit, double lowerlimit);
+  struct threshold init_triggering(const char id[], double co, double a);
+  bool eval_threshold(struct threshold &trigger, double signal, double ref);
 };
