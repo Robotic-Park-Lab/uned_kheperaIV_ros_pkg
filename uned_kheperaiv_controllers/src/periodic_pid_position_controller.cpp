@@ -5,10 +5,21 @@ bool PositionController::initialize(){
   RCLCPP_INFO_ONCE(this->get_logger(),"PositionController::inicialize() ok.");
 
   // Lectura de parámetros
-	this->get_parameter("CONTROLLER_TYPE", m_controller_type);
 	this->get_parameter("ROBOT_ID", m_robot_id);
-	this->get_parameter("CONTROLLER_MODE", m_controller_mode);
 
+  // Linear Controller
+  this->get_parameter("LKp", Kp);
+  this->get_parameter("LKi", Ki);
+  this->get_parameter("LKd", Kd);
+  this->get_parameter("LTd", Td);
+  l_controller = init_controller("L", Kp, Ki, Kd, Td, 100, 2.0, -1.0);
+
+  // Angular Controller
+  this->get_parameter("WKp", Kp);
+  this->get_parameter("WKi", Ki);
+  this->get_parameter("WKd", Kd);
+  this->get_parameter("WTd", Td);
+  w_controller = init_controller("W", Kp, Ki, Kd, Td, 100, 2.0, -2.0);
   // Publisher:
 	// Referencias para los controladores PID Attitude y Rate
   pub_cmd_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel",10);
@@ -38,11 +49,13 @@ bool PositionController::iterate(){
 
     // Controller "A Khepera IV library for robotic control education using V-REP"
     if(distance>0.05){
-      msg_cmd.angular.z = 1.0*std::sin(angle-yaw_gt);
-      msg_cmd.linear.x = 1.0*distance*std::cos(angle-yaw_gt);
-      if(msg_cmd.linear.x<0){
-        msg_cmd.linear.x = 0.0;
-      }
+      w_controller.error[0] = std::sin(angle-yaw_gt);
+      msg_cmd.angular.z = pid_controller(w_controller, dt);
+      l_controller.error[0] = distance*std::cos(angle-yaw_gt);
+      msg_cmd.linear.x = pid_controller(l_controller, dt);
+      // if(msg_cmd.linear.x<0){
+      //   msg_cmd.linear.x = 0.0;
+      // }
     }
     else{
       msg_cmd.angular.z = 0.0;
@@ -74,6 +87,48 @@ int main(int argc, char ** argv){
 		RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Exception: %s",e.what());
 	}
 }
+
+struct pid_s PositionController::init_controller(const char id[], double kp, double ki, double kd, double td, int nd, double upperlimit, double lowerlimit){
+    struct pid_s controller;
+
+    controller.kp = kp;
+    controller.ki = ki;
+    controller.kd = kd;
+    controller.td = td;
+    controller.nd = nd;
+    controller.error[0] = 0.0;
+    controller.error[1] = 0.0;
+    controller.integral = 0.0;
+    controller.derivative = 0.0;
+    controller.upperlimit = upperlimit;
+    controller.lowerlimit = lowerlimit;
+
+    RCLCPP_INFO(this->get_logger(),"%s Controller: kp: %0.2f \tki: %0.2f \tkd: %0.2f", id, controller.kp, controller.ki, controller.kd);
+    return controller;
+}
+
+double PositionController::pid_controller(struct pid_s &controller, double dt){
+  double outP = controller.kp * controller.error[0];
+	controller.integral = controller.integral + controller.ki * controller.error[1] * dt;
+	controller.derivative = (controller.td/(controller.td+controller.nd+dt))*controller.derivative+(controller.kd*controller.nd/(controller.td+controller.nd*dt))*(controller.error[0]-controller.error[1]);
+	double out = outP + controller.integral + controller.derivative;
+
+	if(controller.upperlimit != 0.0){
+		double out_i = out;
+
+		if (out > controller.upperlimit)
+			out = controller.upperlimit;
+		if (out < controller.lowerlimit)
+			out = controller.lowerlimit;
+
+		// controller.integral = controller.integral - (out - out_i) * sqrt(controller.kp / controller.ki);
+	}
+
+	controller.error[1] = controller.error[0];
+
+	return out;
+}
+
 
 void PositionController::gtposeCallback(const nav_msgs::msg::Odometry::SharedPtr msg){
   auto msg_aux = geometry_msgs::msg::PoseWithCovariance();

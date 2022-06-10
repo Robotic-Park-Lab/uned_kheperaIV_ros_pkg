@@ -9,16 +9,16 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import ThisLaunchFileDir
+from launch.substitutions import LaunchConfiguration, Command, FindExecutable, PathJoinSubstitution,ThisLaunchFileDir
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 from launch.actions import ExecuteProcess
 
 
 def generate_launch_description():
 
+    use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     world_path = os.path.join(get_package_share_directory('uned_kheperaiv_config'), 'worlds', 'RoboticParkLab.world')
-    # urdf_path = os.path.join(get_package_share_directory('tello_description'), 'urdf', 'tello_1.urdf')
-    # urdf_path2 = os.path.join(get_package_share_directory('tello_description'), 'urdf', 'tello_2.urdf')
 
     return LaunchDescription([
         ExecuteProcess(cmd=[
@@ -43,13 +43,24 @@ def generate_launch_description():
                 namespace='khepera01',
                 output='screen',
                 shell=True,
-                emulate_tty=True),
+                emulate_tty=True,
+                parameters=[
+                    {'use_sim_time': use_sim_time},
+                    {"LKp": 1.0, "LKi": 0.0, "LKd": 0.0, "LTd": 0.0},
+                    {"WKp": 1.0, "WKi": 0.0, "WKd": 0.0, "WTd": 0.0},
+                ]),
+
         
         Node(package='uned_kheperaiv_controllers', executable='periodic_pid_position_controller',
                 name='position_controller',
                 namespace='khepera02',
                 output='screen',
                 shell=True,
-                emulate_tty=True)
+                emulate_tty=True,
+                parameters=[
+                    {'use_sim_time': use_sim_time},
+                    {"LKp": 1.0, "LKi": 0.0, "LKd": 0.0, "LTd": 0.0},
+                    {"WKp": 1.0, "WKi": 0.0, "WKd": 0.0, "WTd": 0.0},
+                ])
 
     ])

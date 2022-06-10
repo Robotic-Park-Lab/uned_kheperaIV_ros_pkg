@@ -21,12 +21,38 @@
 #include <geometry_msgs/msg/pose_with_covariance.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 
+struct pid_s{
+    double kp, ki, kd, td;
+    int nd;
+    double error[2], integral, derivative, upperlimit, lowerlimit;
+};
+struct euler_angles {
+    double roll, pitch, yaw;
+};
+struct threshold {
+  double co, ai, cn;
+  double dt;
+  double noise[20] = {};
+  double last_signal = 0.0;
+  std::chrono::steady_clock::time_point last_time;
+};
+
 using namespace std::chrono_literals;
 
 class PositionController : public rclcpp::Node
 {
 public:
-  PositionController() : Node("position_controller") {}
+  PositionController() : Node("position_controller") {
+    this->declare_parameter("ROBOT_ID", "Khepera01");
+    this->declare_parameter("LKp", 0.);
+    this->declare_parameter("LKi", 0.);
+    this->declare_parameter("LKd", 0.);
+    this->declare_parameter("LTd", 0.);
+    this->declare_parameter("WKp", 0.);
+    this->declare_parameter("WKi", 0.);
+    this->declare_parameter("WKd", 0.);
+    this->declare_parameter("WTd", 0.);
+  }
 
   bool initialize();
   bool iterate();
@@ -40,6 +66,11 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr ref_pose_;
   void positionreferenceCallback(const geometry_msgs::msg::Pose::SharedPtr msg);
 
+  // Params
+  double Kp, Ki, Kd, Td, Co, Ai, Cn;
+  double dt = 0.01;
+  // Controllers
+  struct pid_s l_controller, w_controller;
   double m_x_init, m_y_init, m_z_init;
   double distance, angle, yaw_gt;
   bool first_pose_received, first_ref_received;
@@ -47,4 +78,6 @@ private:
   geometry_msgs::msg::Pose GT_pose, ref_pose;
   // nav_msgs::msg::Odometry GT_pose;
 
+  double pid_controller(struct pid_s &controller, double dt);
+  struct pid_s init_controller(const char id[], double kp, double ki, double kd, double td, int nd, double upperlimit, double lowerlimit);
 };
