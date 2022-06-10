@@ -1,5 +1,6 @@
 from http.server import executable
 import os
+import random
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -15,6 +16,10 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     world_path = os.path.join(get_package_share_directory('uned_kheperaiv_config'), 'worlds', 'RoboticParkLab.world')
+    khepera01_x = str(round(random.uniform(-1.5, 1.5), 2))
+    khepera01_y = str(round(random.uniform(-1.5, 1.5), 2))
+    khepera02_x = str(round(random.uniform(-1.5, 1.5), 2))
+    khepera02_y = str(round(random.uniform(-1.5, 1.5), 2))
 
     return LaunchDescription([
         ExecuteProcess(cmd=[
@@ -27,11 +32,7 @@ def generate_launch_description():
 
         # GAZEBO_MODEL_PATH has to be correctly set for Gazebo to be able to find the model
         Node(package='gazebo_ros', executable='spawn_entity.py',
-                            arguments=['-entity', 'khepera01', '-database', 'khepera_IV','-robot_namespace', 'khepera01','-x', '1'],
-                            output='screen'),
-
-        Node(package='gazebo_ros', executable='spawn_entity.py',
-                            arguments=['-entity', 'khepera02', '-database', 'khepera_IV','-robot_namespace', 'khepera02','-x', '0.5','-y', '0.5'],
+                            arguments=['-entity', 'khepera01', '-database', 'khepera_IV','-robot_namespace', 'khepera01','-x', khepera01_x, '-y', khepera01_y],
                             output='screen'),
 
         Node(package='uned_kheperaiv_controllers', executable='periodic_pid_position_controller',
@@ -56,16 +57,19 @@ def generate_launch_description():
                 shell=True,
                 emulate_tty=True,
                 remappings=[
-                    ('/agent_gt', '/khepera02/ground_truth')],
+                    ('/khepera01/khepera02/ground_truth', '/khepera02/ground_truth')],
                 parameters=[
                     {'use_sim_time': use_sim_time},
                     {"config_file": 'path'},
-                    {"n_agents": 1},
+                    {"agents": 'khepera02'},
                     {"agent_x": '0.5'},
                     {"agent_y": '0.5'},
                 ]),
 
-        
+        Node(package='gazebo_ros', executable='spawn_entity.py',
+                            arguments=['-entity', 'khepera02', '-database', 'khepera_IV','-robot_namespace', 'khepera02','-x', khepera02_x,'-y', khepera02_y],
+                            output='screen'),
+
         Node(package='uned_kheperaiv_controllers', executable='periodic_pid_position_controller',
                 name='position_controller',
                 namespace='khepera02',
@@ -78,7 +82,23 @@ def generate_launch_description():
                     {"WKp": 1.0, "WKi": 0.0, "WKd": 0.0, "WTd": 0.0},
                     {"Lco": 0.01, "Lai": 0.015},
                     {"Wco": 0.01, "Wai": 0.015},
-                    {"Relative_pose": False},
-                ])
+                    {"Relative_pose": True},
+                ]),
+
+        Node(package='uned_kheperaiv_task', executable='shape_based_formation_control',
+                name='formation_control',
+                namespace='khepera02',
+                output='screen',
+                shell=True,
+                emulate_tty=True,
+                remappings=[
+                    ('/khepera02/khepera01/ground_truth', '/khepera01/ground_truth')],
+                parameters=[
+                    {'use_sim_time': use_sim_time},
+                    {"config_file": 'path'},
+                    {"agents": 'khepera01'},
+                    {"agent_x": '-0.5'},
+                    {"agent_y": '-0.5'},
+                ]),
 
     ])
