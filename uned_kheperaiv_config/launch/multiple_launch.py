@@ -50,6 +50,7 @@ def generate_launch_description():
                     {"WKp": 1.0, "WKi": 0.0, "WKd": 0.0, "WTd": 0.0},
                     {"Lco": 0.01, "Lai": 0.015},
                     {"Wco": 0.01, "Wai": 0.015},
+                    {"Relative_pose": False},
                 ]),
 
         
@@ -65,6 +66,7 @@ def generate_launch_description():
                     {"WKp": 1.0, "WKi": 0.0, "WKd": 0.0, "WTd": 0.0},
                     {"Lco": 0.01, "Lai": 0.015},
                     {"Wco": 0.01, "Wai": 0.015},
+                    {"Relative_pose": False},
                 ])
 
     ])

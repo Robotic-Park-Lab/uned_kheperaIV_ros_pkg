@@ -6,6 +6,7 @@ bool PositionController::initialize(){
 
   // Lectura de parámetros
 	this->get_parameter("ROBOT_ID", m_robot_id);
+  this->get_parameter("Relative_pose", m_rel_pose);
 
   // Linear Controller
   this->get_parameter("LKp", Kp);
@@ -104,8 +105,23 @@ void PositionController::gtposeCallback(const nav_msgs::msg::Odometry::SharedPtr
 }
 
 void PositionController::positionreferenceCallback(const geometry_msgs::msg::Pose::SharedPtr msg){
+    if(m_rel_pose){
+    ref_pose.position.x = GT_pose.position.x + msg->position.x;
+    ref_pose.position.y = GT_pose.position.y + msg->position.y;
+    ref_pose.position.z = GT_pose.position.z + msg->position.z;
+    ref_pose.orientation.x = GT_pose.orientation.x + msg->orientation.x;
+    ref_pose.orientation.y = GT_pose.orientation.y + msg->orientation.y;
+    ref_pose.orientation.z = GT_pose.orientation.z + msg->orientation.z;
+    ref_pose.orientation.w = GT_pose.orientation.w + msg->orientation.w;
+  }
+  else{
     ref_pose.position = msg->position;
     ref_pose.orientation = msg->orientation;
+  }
+  if(!first_ref_received){
+    first_ref_received = true;
+  }
+    
 }
 
 struct pid_s PositionController::init_controller(const char id[], double kp, double ki, double kd, double td, int nd, double upperlimit, double lowerlimit){

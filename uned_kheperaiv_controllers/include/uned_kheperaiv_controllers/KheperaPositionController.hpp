@@ -44,6 +44,7 @@ class PositionController : public rclcpp::Node
 public:
   PositionController() : Node("position_controller") {
     this->declare_parameter("ROBOT_ID", "Khepera01");
+    this->declare_parameter("Relative_pose", false),
     this->declare_parameter("LKp", 0.);
     this->declare_parameter("LKi", 0.);
     this->declare_parameter("LKd", 0.);
@@ -73,6 +74,8 @@ private:
   // Params
   double Kp, Ki, Kd, Td, Co, Ai, Cn;
   double dt = 0.01;
+  bool m_rel_pose = false;
+  
   // Controllers
   struct pid_s l_controller, w_controller;
   double m_x_init, m_y_init, m_z_init;
