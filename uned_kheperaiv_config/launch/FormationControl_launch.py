@@ -59,7 +59,10 @@ def generate_launch_description():
                     ('/agent_gt', '/khepera02/ground_truth')],
                 parameters=[
                     {'use_sim_time': use_sim_time},
-                    {"config_file": 'path'}
+                    {"config_file": 'path'},
+                    {"n_agents": 1},
+                    {"agent_x": '0.5'},
+                    {"agent_y": '0.5'},
                 ]),
 
         
