@@ -19,13 +19,7 @@ class Agent():
         self.y = y
         self.pose = Pose()
         self.parent = parent
-        print(self.id + '/ground_truth')
         self.sub_pose = self.parent.create_subscription(Odometry, self.id + '/ground_truth', self.gtpose_callback, 10)
-        # self.str_()
-
-    def str_(self):
-        print(self.x)
-        print(self.y)
 
     def gtpose_callback(self, msg):
         msg_aux = PoseWithCovariance()
@@ -66,7 +60,6 @@ class KheperaIVDriver(Node):
             agent_str = id_array[i-1]
             robot = Agent(self, float(x_array[i-1]), float(y_array[i-1]), agent_str)
             agent_list.append(robot)
-            print(agent_list)
 
         self.groundtruth = Pose()
         self.init = False
@@ -80,14 +73,19 @@ class KheperaIVDriver(Node):
     def update_ref_pose(self):
         if self.init:
             msg = Pose()
+            msg.position.x = 0.0
+            msg.position.y = 0.0
             for robot in agent_list:
-                msg.position.x = msg.position.x + (robot.pose.position.x - self.groundtruth.position.x) + robot.x
-                msg.position.y = msg.position.y + (robot.pose.position.y - self.groundtruth.position.y) + robot.y
+                dx = robot.pose.position.x - self.groundtruth.position.x + robot.x
+                dy = robot.pose.position.y - self.groundtruth.position.y + robot.y
+                msg.position.x += dx 
+                msg.position.y += dy 
+                self.get_logger().warn('%s! X: %f \tY: %f' % (robot.id, dx, dy))
 
+            self.get_logger().error('X: %f \tY: %f' % (msg.position.x, msg.position.y))
             self.ref_pose.publish(msg)
 
 def main(args=None):
-    print('Hi from uned_kheperaIV_task.')
     rclpy.init(args=args)
     formation_control = KheperaIVDriver()
     rclpy.spin(formation_control)

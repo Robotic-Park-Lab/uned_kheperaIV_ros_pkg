@@ -1,0 +1,14 @@
+material caster/Diffuse
+{
+  receive_shadows off
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture khepera-IV_2180020.png
+      }
+    }
+  }
+}

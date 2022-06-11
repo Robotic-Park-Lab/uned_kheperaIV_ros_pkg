@@ -1,6 +1,7 @@
 from http.server import executable
 import os
 import random
+import numpy as np
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -15,21 +16,28 @@ from launch.actions import ExecuteProcess
 def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
-    world_path = os.path.join(get_package_share_directory('uned_kheperaiv_config'), 'worlds', 'RoboticParkLab.world')
-    khepera01_x = str(round(random.uniform(-1.5, 1.5), 2))
-    khepera01_y = str(round(random.uniform(-1.5, 1.5), 2))
-    khepera02_x = str(round(random.uniform(-1.5, 1.5), 2))
-    khepera02_y = str(round(random.uniform(-1.5, 1.5), 2))
-    khepera03_x = str(round(random.uniform(-1.5, 1.5), 2))
-    khepera03_y = str(round(random.uniform(-1.5, 1.5), 2))
-    khepera04_x = str(round(random.uniform(-1.5, 1.5), 2))
-    khepera04_y = str(round(random.uniform(-1.5, 1.5), 2))
-    khepera05_x = str(round(random.uniform(-1.5, 1.5), 2))
-    khepera05_y = str(round(random.uniform(-1.5, 1.5), 2))
+    world_path = os.path.join(get_package_share_directory('uned_kheperaiv_config'), 'worlds', 'RoboticParkLab_light.world')
+    khepera01_x = str(round(random.uniform(-1.0, 1.0), 2))
+    khepera01_y = str(round(random.uniform(-1.0, 1.0), 2))
+    khepera02_x = str(round(random.uniform(-1.0, 1.0), 2))
+    khepera02_y = str(round(random.uniform(-1.0, 1.0), 2))
+    khepera03_x = str(round(random.uniform(-1.0, 1.0), 2))
+    khepera03_y = str(round(random.uniform(-1.0, 1.0), 2))
+    khepera04_x = str(round(random.uniform(-1.0, 1.0), 2))
+    khepera04_y = str(round(random.uniform(-1.0, 1.0), 2))
+    khepera05_x = str(round(random.uniform(-1.0, 1.0), 2))
+    khepera05_y = str(round(random.uniform(-1.0, 1.0), 2))
+    L = np.matrix(' 0.0,  0.0,  0.5,  0.5,  0.0,  0.0; \
+                    0.0,  0.0,  0.5,  0.5,  0.0,  0.0; \
+                   -0.5, -0.5,  0.0,  0.0,  0.5, -0.5; \
+                   -0.5, -0.5,  0.0,  0.0,  0.5, -0.5; \
+                    0.0,  0.0, -0.5,  0.5,  0.0,  0.0; \
+                    0.0,  0.0, -0.5,  0.5,  0.0,  0.0')
 
+    print(', '.join([str(a) for a in np.squeeze(np.asarray(L[5,[2,3]]))]))
     return LaunchDescription([
         ExecuteProcess(cmd=[
-            'gazebo',
+            'gazebo', '-u',
             '-s', 'libgazebo_ros_init.so',  # Publish /clock
             '-s', 'libgazebo_ros_factory.so',  # Provide gazebo_ros::Node
             world_path
@@ -67,8 +75,8 @@ def generate_launch_description():
                     {'use_sim_time': use_sim_time},
                     {"config_file": 'path'},
                     {"agents": 'khepera02'},
-                    {"agent_x": '0.5'},
-                    {"agent_y": '0.5'},
+                    {"agent_x": ', '.join([str(a) for a in np.squeeze(np.asarray(L[0,[2,4]]))])},
+                    {"agent_y": ', '.join([str(a) for a in np.squeeze(np.asarray(L[1,[3,5]]))])},
                 ]),
 
         Node(package='gazebo_ros', executable='spawn_entity.py',
@@ -97,13 +105,14 @@ def generate_launch_description():
                 shell=True,
                 emulate_tty=True,
                 remappings=[
-                    ('/khepera02/khepera01/ground_truth', '/khepera01/ground_truth')],
+                    ('/khepera02/khepera01/ground_truth', '/khepera01/ground_truth'),
+                    ('/khepera02/khepera03/ground_truth', '/khepera03/ground_truth')],
                 parameters=[
                     {'use_sim_time': use_sim_time},
                     {"config_file": 'path'},
-                    {"agents": 'khepera01'},
-                    {"agent_x": '-0.5'},
-                    {"agent_y": '-0.5'},
+                    {"agents": 'khepera01, khepera03'},
+                    {"agent_x": ', '.join([str(a) for a in np.squeeze(np.asarray(L[2,[0,4]]))])},
+                    {"agent_y": ', '.join([str(a) for a in np.squeeze(np.asarray(L[3,[1,5]]))])},
                 ]),
 
         Node(package='gazebo_ros', executable='spawn_entity.py',
@@ -133,19 +142,12 @@ def generate_launch_description():
                 emulate_tty=True,
                 remappings=[
                     ('/khepera03/khepera02/ground_truth', '/khepera02/ground_truth')],
+                #arguments=['--ros-args', '--log-level', 'info'],
                 parameters=[
                     {'use_sim_time': use_sim_time},
                     {"config_file": 'path'},
                     {"agents": 'khepera02'},
-                    {"agent_x": '-0.5'},
-                    {"agent_y": '-0.5'},
+                    {"agent_x": ', '.join([str(np.squeeze(np.asarray(L[4,[2]])))])},
+                    {"agent_y": ', '.join([str(np.squeeze(np.asarray(L[5,[3]])))])},
                 ]),
-
-        Node(package='gazebo_ros', executable='spawn_entity.py',
-                            arguments=['-entity', 'khepera04', '-database', 'khepera_IV','-robot_namespace', 'khepera04','-x', khepera04_x,'-y', khepera04_y],
-                            output='screen'),
-
-        Node(package='gazebo_ros', executable='spawn_entity.py',
-                            arguments=['-entity', 'khepera05', '-database', 'khepera_IV','-robot_namespace', 'khepera05','-x', khepera05_x,'-y', khepera05_y],
-                            output='screen'),
     ])
