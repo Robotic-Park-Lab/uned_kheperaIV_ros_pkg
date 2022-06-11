@@ -23,10 +23,7 @@ def generate_launch_description():
     khepera02_y = str(round(random.uniform(-1.0, 1.0), 2))
     khepera03_x = str(round(random.uniform(-1.0, 1.0), 2))
     khepera03_y = str(round(random.uniform(-1.0, 1.0), 2))
-    khepera04_x = str(round(random.uniform(-1.0, 1.0), 2))
-    khepera04_y = str(round(random.uniform(-1.0, 1.0), 2))
-    khepera05_x = str(round(random.uniform(-1.0, 1.0), 2))
-    khepera05_y = str(round(random.uniform(-1.0, 1.0), 2))
+
     L = np.matrix(' 0.0,  0.0,  0.5,  0.5,  0.0,  0.0; \
                     0.0,  0.0,  0.5,  0.5,  0.0,  0.0; \
                    -0.5, -0.5,  0.0,  0.0,  0.5, -0.5; \
@@ -34,7 +31,7 @@ def generate_launch_description():
                     0.0,  0.0, -0.5,  0.5,  0.0,  0.0; \
                     0.0,  0.0, -0.5,  0.5,  0.0,  0.0')
 
-    print(', '.join([str(a) for a in np.squeeze(np.asarray(L[5,[2,3]]))]))
+
     return LaunchDescription([
         ExecuteProcess(cmd=[
             'gazebo', '-u',
@@ -42,6 +39,8 @@ def generate_launch_description():
             '-s', 'libgazebo_ros_factory.so',  # Provide gazebo_ros::Node
             world_path
         ], output='screen'),
+
+        # ExecuteProcess(cmd=['ros2', 'bag', 'record', '-a', ], output='screen'),
 
         # GAZEBO_MODEL_PATH has to be correctly set for Gazebo to be able to find the model
         Node(package='gazebo_ros', executable='spawn_entity.py',
@@ -150,4 +149,5 @@ def generate_launch_description():
                     {"agent_x": ', '.join([str(np.squeeze(np.asarray(L[4,[2]])))])},
                     {"agent_y": ', '.join([str(np.squeeze(np.asarray(L[5,[3]])))])},
                 ]),
+        Node(package='rqt_gui', executable='rqt_gui',name='interface')
     ])
