@@ -62,8 +62,6 @@ class KheperaIVDriver(Node):
         x_array = aux.split(', ')
         aux = self.get_parameter('agent_y').get_parameter_value().string_value
         y_array = aux.split(', ')
-        id_address_int = 1
-        id_base = 'khepera0'
         for i in range(int(len(id_array)),0,-1):
             agent_str = id_array[i-1]
             robot = Agent(self, float(x_array[i-1]), float(y_array[i-1]), agent_str)
@@ -71,7 +69,6 @@ class KheperaIVDriver(Node):
             print(agent_list)
 
         self.groundtruth = Pose()
-        self.agent_pose = Pose()
         self.init = False
 
     def gtpose_callback(self, msg):
@@ -81,12 +78,13 @@ class KheperaIVDriver(Node):
         self.init = True
 
     def update_ref_pose(self):
-        msg = Pose()
-        for robot in agent_list:
-            msg.position.x = msg.position.x + (robot.pose.position.x - self.groundtruth.position.x) + robot.x
-            msg.position.y = msg.position.y + (robot.pose.position.y - self.groundtruth.position.y) + robot.y
+        if self.init:
+            msg = Pose()
+            for robot in agent_list:
+                msg.position.x = msg.position.x + (robot.pose.position.x - self.groundtruth.position.x) + robot.x
+                msg.position.y = msg.position.y + (robot.pose.position.y - self.groundtruth.position.y) + robot.y
 
-        self.ref_pose.publish(msg)
+            self.ref_pose.publish(msg)
 
 def main(args=None):
     print('Hi from uned_kheperaIV_task.')

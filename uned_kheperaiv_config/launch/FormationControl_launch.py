@@ -20,11 +20,16 @@ def generate_launch_description():
     khepera01_y = str(round(random.uniform(-1.5, 1.5), 2))
     khepera02_x = str(round(random.uniform(-1.5, 1.5), 2))
     khepera02_y = str(round(random.uniform(-1.5, 1.5), 2))
+    khepera03_x = str(round(random.uniform(-1.5, 1.5), 2))
+    khepera03_y = str(round(random.uniform(-1.5, 1.5), 2))
+    khepera04_x = str(round(random.uniform(-1.5, 1.5), 2))
+    khepera04_y = str(round(random.uniform(-1.5, 1.5), 2))
+    khepera05_x = str(round(random.uniform(-1.5, 1.5), 2))
+    khepera05_y = str(round(random.uniform(-1.5, 1.5), 2))
 
     return LaunchDescription([
         ExecuteProcess(cmd=[
             'gazebo',
-            '--verbose',
             '-s', 'libgazebo_ros_init.so',  # Publish /clock
             '-s', 'libgazebo_ros_factory.so',  # Provide gazebo_ros::Node
             world_path
@@ -101,4 +106,46 @@ def generate_launch_description():
                     {"agent_y": '-0.5'},
                 ]),
 
+        Node(package='gazebo_ros', executable='spawn_entity.py',
+                            arguments=['-entity', 'khepera03', '-database', 'khepera_IV','-robot_namespace', 'khepera03','-x', khepera03_x,'-y', khepera03_y],
+                            output='screen'),
+
+        Node(package='uned_kheperaiv_controllers', executable='periodic_pid_position_controller',
+                name='position_controller',
+                namespace='khepera03',
+                output='screen',
+                shell=True,
+                emulate_tty=True,
+                parameters=[
+                    {'use_sim_time': use_sim_time},
+                    {"LKp": 1.0, "LKi": 0.0, "LKd": 0.0, "LTd": 0.0},
+                    {"WKp": 1.0, "WKi": 0.0, "WKd": 0.0, "WTd": 0.0},
+                    {"Lco": 0.01, "Lai": 0.015},
+                    {"Wco": 0.01, "Wai": 0.015},
+                    {"Relative_pose": True},
+                ]),
+        
+        Node(package='uned_kheperaiv_task', executable='shape_based_formation_control',
+                name='formation_control',
+                namespace='khepera03',
+                output='screen',
+                shell=True,
+                emulate_tty=True,
+                remappings=[
+                    ('/khepera03/khepera02/ground_truth', '/khepera02/ground_truth')],
+                parameters=[
+                    {'use_sim_time': use_sim_time},
+                    {"config_file": 'path'},
+                    {"agents": 'khepera02'},
+                    {"agent_x": '-0.5'},
+                    {"agent_y": '-0.5'},
+                ]),
+
+        Node(package='gazebo_ros', executable='spawn_entity.py',
+                            arguments=['-entity', 'khepera04', '-database', 'khepera_IV','-robot_namespace', 'khepera04','-x', khepera04_x,'-y', khepera04_y],
+                            output='screen'),
+
+        Node(package='gazebo_ros', executable='spawn_entity.py',
+                            arguments=['-entity', 'khepera05', '-database', 'khepera_IV','-robot_namespace', 'khepera05','-x', khepera05_x,'-y', khepera05_y],
+                            output='screen'),
     ])
