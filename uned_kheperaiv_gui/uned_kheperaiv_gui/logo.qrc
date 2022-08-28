@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="logo">
+    <file>figs/Khepera.png</file>
+    <file>figs/KheperaUp.png</file>
+    <file>figs/UNED.jpg</file>
+    <file>figs/LogoRoboticPark.png</file>
+  </qresource>
+</RCC>
