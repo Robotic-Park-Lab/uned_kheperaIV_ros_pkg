@@ -108,9 +108,12 @@ class MainWindow(QMainWindow):
 		self.ControlWidget.addTab(self.steer, "Open Loop")
 
 		self.rqt = RQT_Panel("rqt")
+		self.rqt_camera = RQT_Panel("rqt")
 		self.rqtgraph = RQT_Panel("rqt_graph")
 		self.GraphsWidget.addTab(self.rqt, "Plots")
 		self.GraphsWidget.addTab(self.rqtgraph, "Graph")
+		self.tabWidget.addTab(self.rqt_camera, "Camera")
+		
 
 		node.get_logger().warn("Development in progress ...")
 		self.Close_action.triggered.connect(self.cerrar)
