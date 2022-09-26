@@ -61,11 +61,11 @@ Khepera4 {
   translation 0.0 0.0 0.0
   rotation 1.78221999971205e-05 -2.346349999620905e-06 0.9999999998384319 0.261803
   name "khepera01"
-  controller "khepera4"
+  controller "<extern>"
 }
 Khepera4 {
   translation 0.3 0.0 0.0
   rotation 1.78221999971205e-05 -2.346349999620905e-06 0.9999999998384319 0.261803
   name "khepera02"
-  controller "khepera4"
+  controller "<extern>"
 }
