@@ -38,6 +38,7 @@ class KheperaWebotsDriver:
         self.global_x = 0.0
         self.global_y = 0.0
         self.global_yaw = 0.0
+        self.init_pose = False
 
         self.target_pose = Pose()
         self.target_pose.position.x = 0.0
@@ -125,6 +126,11 @@ class KheperaWebotsDriver:
         self.global_y = self.gps.getValues()[1]
         self.global_yaw = self.imu.getRollPitchYaw()[2]
         
+        if not self.init_pose:
+            self.target_pose.position.x = self.global_x
+            self.target_pose.position.y= self.global_y
+            self.init_pose = True
+        
         # TO-DO: Position Controller
         distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
         angle_error = -self.global_yaw+atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
@@ -144,6 +150,6 @@ class KheperaWebotsDriver:
         self.past_time = self.robot.getTime()
 
         # DEBUG
-        self.node.get_logger().info('Get Pose3D: X:%f Y:%f yaw:%f' % (self.gps.getValues()[0],self.gps.getValues()[1],self.imu.getRollPitchYaw()[2]))
-        self.node.get_logger().info('Target Pose3D: X:%f Y:%f' % (self.target_pose.position.x,self.target_pose.position.y))
-        self.node.get_logger().info('Target Pose3D: Distance:%f Angle:%f' % (distance_error.real,angle_error))
+        # self.node.get_logger().info('Get Pose3D: X:%f Y:%f yaw:%f' % (self.gps.getValues()[0],self.gps.getValues()[1],self.imu.getRollPitchYaw()[2]))
+        # self.node.get_logger().info('Target Pose3D: X:%f Y:%f' % (self.target_pose.position.x,self.target_pose.position.y))
+        # self.node.get_logger().info('Distance:%f Angle:%f' % (distance_error.real,angle_error))
