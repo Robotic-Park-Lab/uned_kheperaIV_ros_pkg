@@ -73,9 +73,9 @@ class KheperaWebotsDriver:
         self.node.get_logger().info('Webots_Node::inicialize() ok. %s' % (str(name_value)))
         self.node.create_subscription(Twist, name_value+'/cmd_vel', self.cmd_vel_callback, 1)
         self.node.create_subscription(Pose, name_value+'/goal_pose', self.goal_pose_callback, 1)
-        self.laser_publisher = self.node.create_publisher(LaserScan, name_value+'/scan', 10)
-        self.msg_laser = LaserScan()
-        self.node.create_timer(1.0/30.0, self.publish_laserscan_data)
+#         self.laser_publisher = self.node.create_publisher(LaserScan, name_value+'/scan', 10)
+#         self.msg_laser = LaserScan()
+#         self.node.create_timer(1.0/30.0, self.publish_laserscan_data)
 
         self.tfbr = TransformBroadcaster(self.node)
     
@@ -135,11 +135,7 @@ class KheperaWebotsDriver:
         distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
         angle_error = -self.global_yaw+atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
         
-        if distance_error.real>0.01:
-            self.target_twist.linear.x = distance_error.real*cos(angle_error)
-        else:
-            self.target_twist.linear.x = 0.0
-        self.target_twist.angular.z = sin(angle_error)*10
+        self.target_twist = self.pid_controller(distance_error, angle_error)
 
         # Velocity [rad/s]
         self.motor_left.setVelocity((self.target_twist.linear.x/0.042-0.10540*self.target_twist.angular.z))
@@ -153,3 +149,16 @@ class KheperaWebotsDriver:
         # self.node.get_logger().info('Get Pose3D: X:%f Y:%f yaw:%f' % (self.gps.getValues()[0],self.gps.getValues()[1],self.imu.getRollPitchYaw()[2]))
         # self.node.get_logger().info('Target Pose3D: X:%f Y:%f' % (self.target_pose.position.x,self.target_pose.position.y))
         # self.node.get_logger().info('Distance:%f Angle:%f' % (distance_error.real,angle_error))
+
+    def pid_controller(self, error, angle):
+
+        control_signal = Twist()
+
+        if error.real>0.01:
+            control_signal.linear.x = error.real*cos(angle)
+        else:
+            control_signal.linear.x = 0.0
+
+        control_signal.angular.z = sin(angle)*10
+
+        return control_signal
