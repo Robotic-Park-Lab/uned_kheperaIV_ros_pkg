@@ -35,3 +35,10 @@ Khepera4 {
   name "khepera02"
   controller "<extern>"
 }
+
+Khepera4 {
+  translation -0.4 0.4 0.0
+  rotation 0.0 0.0 0.0 1.0
+  name "khepera03"
+  controller "<extern>"
+}
