@@ -1,14 +1,8 @@
-import logging
-import time
 import rclpy
-from threading import Timer
-import numpy as np
-import math
 
 from rclpy.node import Node
-from std_msgs.msg import String, UInt16, UInt16MultiArray, Float64, Float64MultiArray
-from geometry_msgs.msg import Pose, Twist, PoseWithCovariance
-from nav_msgs.msg import Odometry
+from std_msgs.msg import String
+from geometry_msgs.msg import Pose
 
 agent_list = list()
 
@@ -34,16 +28,13 @@ class KheperaIVDriver(Node):
         self.declare_parameter('agent_y', '0.2')
 
         # Subscription
-        self.gt_pose = self.create_subscription(Odometry, 'ground_truth', self.gtpose_callback, 10)
+        self.gt_pose = self.create_subscription(Pose, 'pose', self.gtpose_callback, 10)
         self.sub_order = self.create_subscription(String, 'swarm/status', self.order_callback, 10)
-
         # Publisher
         self.ref_pose = self.create_publisher(Pose, 'goal_pose', 10)
 
         self.initialize()
-
-        self.timer = self.create_timer(0.02, self.update_ref_pose)
-
+        self.timer = self.create_timer(0.02, self.task_manager)
         
 
     def initialize(self):
@@ -69,31 +60,27 @@ class KheperaIVDriver(Node):
         self.integral_y = 0
 
     def gtpose_callback(self, msg):
-        msg_aux = PoseWithCovariance()
-        msg_aux = msg.pose
-        self.groundtruth = msg_aux.pose
+        self.groundtruth = msg
 
     def order_callback(self, msg):
         self.init = True
 
-    def update_ref_pose(self):
+    def task_manager(self):
         if self.init:
             msg = Pose()
-            msg.position.x = 0.0
-            msg.position.y = 0.0
+            msg.position.x = self.groundtruth.position.x
+            msg.position.y = self.groundtruth.position.y
             dx = dy = 0
             for robot in agent_list:
                 dx += robot.x - (self.groundtruth.position.x - robot.pose.position.x)
                 dy += robot.y - (self.groundtruth.position.y - robot.pose.position.y)
             self.integral_x += (1/(len(agent_list)*1.0))*self.x_error*0.02
             self.integral_y += (1/(len(agent_list)*1.0))*self.y_error*0.02
-            msg.position.x += (dx/len(agent_list))+self.integral_x 
-            msg.position.y += (dy/len(agent_list))+self.integral_y
+            msg.position.x += (dx/len(agent_list))#  + self.integral_x 
+            msg.position.y += (dy/len(agent_list))#  + self.integral_y
             self.x_error = dx
             self.y_error = dy
-            # self.get_logger().warn('%s! X: %f \tY: %f' % (robot.id, dx, dy))
 
-            # self.get_logger().error('X: %f \tY: %f' % (msg.position.x, msg.position.y))
             self.ref_pose.publish(msg)
 
 def main(args=None):
