@@ -76,8 +76,7 @@ class KheperaIVDriver(Node):
                 dx += robot.distance * cos(alfa) - error_x
                 dy += robot.distance * sin(alfa) - error_y
                 distance = sqrt(pow(error_x,2)+pow(error_y,2))
-                if robot.id == 'turtlebot01':
-                    self.get_logger().warn('Agent %s: D: %.2f X: %.3f Y: %.3f Alfa: %.3f' % (robot.id, distance.real, error_x, error_y, alfa))
+                # self.get_logger().warn('Agent %s: D: %.2f X: %.3f Y: %.3f Alfa: %.3f' % (robot.id, distance.real, error_x, error_y, alfa))
             msg.position.x += (dx/len(agent_list))
             msg.position.y += (dy/len(agent_list))
 

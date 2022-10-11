@@ -34,7 +34,7 @@ class KheperaWebotsDriver:
 
         self.target_twist = Twist()
 
-        ## Init Pose
+        ## Initialize Pose
         self.global_x = 0.0
         self.global_y = 0.0
         self.global_yaw = 0.0
@@ -131,13 +131,18 @@ class KheperaWebotsDriver:
         distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
         angle_error = -self.global_yaw+atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
 
+        self.test = Twist()
+        self.test = self.forces_field(dt, distance_error, angle_error)
+        # distance_error = sqrt(pow(self.test.position.x,2)+pow(self.test.position.y,2))
+        # angle_error = -self.global_yaw+atan2(self.test.position.y,self.test.position.x)
+
         self.target_twist = self.pid_controller(distance_error, angle_error)
 
-        # self.target_twist = self.forces_field(dt, distance_error, angle_error)
+        
 
         # Velocity [rad/s]
-        self.motor_left.setVelocity((self.target_twist.linear.x/0.042-0.10540*self.target_twist.angular.z))
-        self.motor_right.setVelocity((self.target_twist.linear.x/0.042+0.10540*self.target_twist.angular.z))
+        self.motor_left.setVelocity((self.test.linear.x/0.042-0.10540*self.test.angular.z))
+        self.motor_right.setVelocity((self.test.linear.x/0.042+0.10540*self.test.angular.z))
 
         # TO-DO: Introudcir Modelo Cinemático Diferencial Directo -> /odom
 
@@ -145,6 +150,9 @@ class KheperaWebotsDriver:
 
         self.node.get_logger().debug('Pose3D: X:%f Y:%f yaw:%f' % (self.gps.getValues()[0],self.gps.getValues()[1],self.imu.getRollPitchYaw()[2]))
         self.node.get_logger().debug('Target: X:%f Y:%f' % (self.target_pose.position.x,self.target_pose.position.y))
+        # self.node.get_logger().debug('Force Field: X:%f Y:%f' % (self.test.position.x,self.test.position.y))
+        self.node.get_logger().debug('PID cmd: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
+        self.node.get_logger().debug('Force Field: vX:%f vZ:%f' % (self.test.linear.x,self.test.angular.z))
         self.node.get_logger().debug('Distance:%f Angle:%f' % (distance_error.real,angle_error))
 
     def pid_controller(self, error, angle):
@@ -161,48 +169,55 @@ class KheperaWebotsDriver:
         return control_signal
 
     def forces_field(self,dt, error, angle_error):
-        Ka = 1.0
-        Kr = 350
+        Ka = -1.0
+        Kr = 150
 
         # Attractive force
         error_x = (self.target_pose.position.x-self.global_x)*cos(self.global_yaw)+(self.target_pose.position.y-self.global_y)*sin(self.global_yaw)
         error_y = -(self.target_pose.position.x-self.global_x)*sin(self.global_yaw)+(self.target_pose.position.y-self.global_y)*cos(self.global_yaw)
 
-        Fa_x = Ka * error_x 
-        Fa_y = Ka * error_y 
+        Fa_x = Ka * error_x
+        Fa_y = Ka * error_y
 
         Fa = sqrt(pow(Fa_x,2)+pow(Fa_y,2))
-        # self.node.get_logger().warn('Fa: %.2f Fa_x %.2f Fa_y %.2f ' % (Fa.real, Fa_x, Fa_y))
+        self.node.get_logger().debug('Fa: %.2f Fa_x %.2f Fa_y %.2f ' % (Fa.real, Fa_x, Fa_y))
 
         # Reactive force
-        limit_value = 14
         limit_distance = 30
         Fr_x = Fr_y = 0
-        sensor_value = self.range_left.getValue()*100
+        sensor_value = self.range_left.getValue() * 100
         if sensor_value<limit_distance:
-            Fr_x += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(90))
-            Fr_y += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(90))
-        sensor_value = self.range_frontleft.getValue()*100
+            Fr_x += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(90))
+            Fr_y += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(90))
+            # self.node.get_logger().debug('Sensor 1: %.2f Fr_x %.2f Fr_y %.2f ' % (sensor_value,  Fr_x, Fr_y))
+        sensor_value = self.range_frontleft.getValue() * 100
         if sensor_value<limit_distance:
-            Fr_x += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(45))
-            Fr_y += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(45))
-        sensor_value = self.range_front.getValue()*100
+            Fr_x += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(45))
+            Fr_y += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(45))
+            # self.node.get_logger().debug('Sensor 2: %.2f Fr_x %.2f Fr_y %.2f ' % (sensor_value,  Fr_x, Fr_y))
+        sensor_value = self.range_front.getValue() * 100
         if sensor_value<limit_distance:
-            Fr_x += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*cos(self.global_yaw)
-            Fr_y += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*sin(self.global_yaw)
-        sensor_value = self.range_frontright.getValue()*100
+            Fr_x += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*cos(self.global_yaw)
+            Fr_y += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*sin(self.global_yaw)
+            # self.node.get_logger().debug('Sensor 3: %.2f Fr_x %.2f Fr_y %.2f ' % (sensor_value,  Fr_x, Fr_y))
+        sensor_value = self.range_frontright.getValue() * 100
         if sensor_value<limit_distance:
-            Fr_x += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(-45))
-            Fr_y += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(-45))
-        sensor_value = self.range_right.getValue()*100
+            Fr_x += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(-45))
+            Fr_y += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(-45))
+            # self.node.get_logger().debug('Sensor 4: %.2f Fr_x %.2f Fr_y %.2f ' % (sensor_value,  Fr_x, Fr_y))
+        sensor_value = self.range_right.getValue() * 100
         if sensor_value<limit_distance:
-            Fr_x += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(-90))
-            Fr_y += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(-90))
+            Fr_x += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(-90))
+            Fr_y += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(-90))
+            # self.node.get_logger().debug('Sensor 5: %.2f Fr_x %.2f Fr_y %.2f ' % (sensor_value,  Fr_x, Fr_y))
 
-        Fr_x = Fr_x * 10
-        Fr_y = Fr_y * 10
+        if Fr_x>600:
+            Fr_x = -600
+        if Fr_y > 600:
+            Fr_y = 600
+        
         Fr = sqrt(pow(Fr_x,2)+pow(Fr_y,2))
-        # self.node.get_logger().info('Fr: %.2f Fr_x %.3f Fr_y %.3f' % (Fr.real, Fr_x, Fr_y))
+        self.node.get_logger().debug('Fr: %.2f Fr_x %.3f Fr_y %.3f' % (Fr.real, Fr_x, Fr_y))
 
         # Gloabal force
         F = sqrt(pow(Fa,2)+pow(Fr,2))
@@ -211,8 +226,8 @@ class KheperaWebotsDriver:
         wmax = 1.5 # [rad/s]
         vx = vy = 0
         if F.real>0.01:
-            vx = (Fa_x+Fr_x)/F.real
-            vy = (Fa_y+Fr_y)/F.real
+            vx = -(Fa_x+Fr_x)/F.real
+            vy = -(Fa_y+Fr_y)/F.real
 
         if Fr_x>0:
             vx = 0
@@ -220,19 +235,23 @@ class KheperaWebotsDriver:
         v = sqrt(pow(vx,2)+pow(vy,2))
         w = wmax*sin(atan2(vy,vx))*10
 
-        # self.node.get_logger().info('V: %.2f Vx: %.2f Vy: %.2f W: %.2f' % (v.real, vx, vy, w))
+        self.node.get_logger().debug('V: %.2f Vx: %.2f Vy: %.2f W: %.2f' % (v.real, vx, vy, w))
 
-        control_signal = Twist()
+        ## Next Pose:
+        # out = Pose()
+        # out.position.x = - dt * vmax * (Fa_x+Fr_x)/F.real
+        # out.position.y = - dt * vmax * (Fa_y+Fr_y)/F.real
 
-        if error.real>0.01:
-            # control_signal.linear.x = error.real*vx # *cos(angle_error)
-            control_signal.linear.x = 1.0 * vx # * cos(angle_error)
+        ## Cmd_Vel
+        out = Twist()
+        if F.real>0.01:
+            out.linear.x = -(Fa_x+Fr_x)
         else:
-            control_signal.linear.x = 0.0
+            out.linear.x = 0.0
 
-        control_signal.angular.z = sin(angle_error)*10
+        out.angular.z = w
 
-        return control_signal
+        return out 
 
 
 
