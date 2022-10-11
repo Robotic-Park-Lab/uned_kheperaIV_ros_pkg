@@ -131,9 +131,9 @@ class KheperaWebotsDriver:
         distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
         angle_error = -self.global_yaw+atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
 
-        # self.target_twist = self.pid_controller(distance_error, angle_error)
+        self.target_twist = self.pid_controller(distance_error, angle_error)
 
-        self.target_twist = self.forces_field(dt)
+        # self.target_twist = self.forces_field(dt, distance_error, angle_error)
 
         # Velocity [rad/s]
         self.motor_left.setVelocity((self.target_twist.linear.x/0.042-0.10540*self.target_twist.angular.z))
@@ -160,71 +160,79 @@ class KheperaWebotsDriver:
 
         return control_signal
 
-    def forces_field(self,dt):
-        response = Twist()
-        Ka = 5.0
-        Kr = 0.5
+    def forces_field(self,dt, error, angle_error):
+        Ka = 1.0
+        Kr = 350
 
         # Attractive force
         error_x = (self.target_pose.position.x-self.global_x)*cos(self.global_yaw)+(self.target_pose.position.y-self.global_y)*sin(self.global_yaw)
         error_y = -(self.target_pose.position.x-self.global_x)*sin(self.global_yaw)+(self.target_pose.position.y-self.global_y)*cos(self.global_yaw)
 
-        Fa_x = Ka * error_x
-        Fa_y = Ka * error_y
+        Fa_x = Ka * error_x 
+        Fa_y = Ka * error_y 
 
         Fa = sqrt(pow(Fa_x,2)+pow(Fa_y,2))
-        self.node.get_logger().info('Fa: %.2f Fa_x %.2f Fa_y %.2f ' % (Fa.real, Fa_x, Fa_y))
+        # self.node.get_logger().warn('Fa: %.2f Fa_x %.2f Fa_y %.2f ' % (Fa.real, Fa_x, Fa_y))
 
         # Reactive force
-        limit_value = 0.15
-        limit_distance = 0.3
+        limit_value = 14
+        limit_distance = 30
         Fr_x = Fr_y = 0
-        sensor_value = self.range_left.getValue()
+        sensor_value = self.range_left.getValue()*100
         if sensor_value<limit_distance:
             Fr_x += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(90))
             Fr_y += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(90))
-        sensor_value = self.range_frontleft.getValue()
+        sensor_value = self.range_frontleft.getValue()*100
         if sensor_value<limit_distance:
             Fr_x += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(45))
             Fr_y += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(45))
-        sensor_value = self.range_front.getValue()
+        sensor_value = self.range_front.getValue()*100
         if sensor_value<limit_distance:
             Fr_x += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*cos(self.global_yaw)
             Fr_y += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*sin(self.global_yaw)
-        sensor_value = self.range_frontright.getValue()
+        sensor_value = self.range_frontright.getValue()*100
         if sensor_value<limit_distance:
             Fr_x += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(-45))
             Fr_y += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(-45))
-        sensor_value = self.range_right.getValue()
+        sensor_value = self.range_right.getValue()*100
         if sensor_value<limit_distance:
             Fr_x += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*cos(self.global_yaw+radians(-90))
             Fr_y += Kr * ((1/sensor_value)-(1/limit_value))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(-90))
 
+        Fr_x = Fr_x * 10
+        Fr_y = Fr_y * 10
         Fr = sqrt(pow(Fr_x,2)+pow(Fr_y,2))
-        self.node.get_logger().info('Fr: %.2f Fr_x %.3f Fr_y %.3f' % (Fr.real, Fr_x, Fr_y))
+        # self.node.get_logger().info('Fr: %.2f Fr_x %.3f Fr_y %.3f' % (Fr.real, Fr_x, Fr_y))
 
         # Gloabal force
         F = sqrt(pow(Fa,2)+pow(Fr,2))
-
         # Movement
         vmax = 1 # [m/s]
         wmax = 1.5 # [rad/s]
-        Fmax = 5.0
-        # Test
-        # Fr_x = 0
-        # Fr_y = 0
-        vx = vmax*(Fa_x+Fr_x)/Fmax
-        vy = vmax*(Fa_y+Fr_y)/Fmax
+        vx = vy = 0
+        if F.real>0.01:
+            vx = (Fa_x+Fr_x)/F.real
+            vy = (Fa_y+Fr_y)/F.real
+
+        if Fr_x>0:
+            vx = 0
 
         v = sqrt(pow(vx,2)+pow(vy,2))
         w = wmax*sin(atan2(vy,vx))*10
 
-        self.node.get_logger().info('V: %.2f Vx: %.2f Vy: %.2f W: %.2f' % (v.real, vx, vy, w))
+        # self.node.get_logger().info('V: %.2f Vx: %.2f Vy: %.2f W: %.2f' % (v.real, vx, vy, w))
 
-        response.linear.x = vx
-        response.angular.z = w
+        control_signal = Twist()
 
-        return response
+        if error.real>0.01:
+            # control_signal.linear.x = error.real*vx # *cos(angle_error)
+            control_signal.linear.x = 1.0 * vx # * cos(angle_error)
+        else:
+            control_signal.linear.x = 0.0
+
+        control_signal.angular.z = sin(angle_error)*10
+
+        return control_signal
 
 
 

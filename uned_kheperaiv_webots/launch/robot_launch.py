@@ -40,10 +40,20 @@ def generate_launch_description():
         }],
     )
 
+    rqt_node = Node(
+        package='rqt_gui',
+        executable='rqt_gui',
+        name='interface',
+        parameters=[
+            {'use_sim_time': use_sim_time},
+        ],
+    )
+
     return LaunchDescription([
         webots,
         robot01_driver,
         robot_state_publisher,
+        rqt_node,
         launch.actions.RegisterEventHandler(
             event_handler=launch.event_handlers.OnProcessExit(
                 target_action=webots,
