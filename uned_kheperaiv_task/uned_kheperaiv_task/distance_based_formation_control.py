@@ -1,8 +1,8 @@
 from math import atan2, cos, sin
 import rclpy
-from cmath import sqrt
+from math import sqrt
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import String, Float64
 from geometry_msgs.msg import Pose
 
 agent_list = list()
@@ -14,6 +14,7 @@ class Agent():
         self.pose = Pose()
         self.parent = parent
         self.sub_pose = self.parent.create_subscription(Pose, self.id + '/pose', self.gtpose_callback, 10)
+        self.publisher_data = self.parent.create_publisher(Float64, self.id + '/data', 10)
 
     def gtpose_callback(self, msg):
         self.pose = msg
@@ -35,7 +36,6 @@ class KheperaIVDriver(Node):
         self.initialize()
         self.timer = self.create_timer(0.02, self.task_manager)
         
-
     def initialize(self):
         self.get_logger().info('Formation Control::inicialize() ok.')
         # Read Params
@@ -76,6 +76,9 @@ class KheperaIVDriver(Node):
                 dx += robot.distance * cos(alfa) - error_x
                 dy += robot.distance * sin(alfa) - error_y
                 distance = sqrt(pow(error_x,2)+pow(error_y,2))
+                msg_data = Float64()
+                msg_data.data = robot.distance - distance
+                robot.publisher_data.publish(msg_data)
                 # self.get_logger().warn('Agent %s: D: %.2f X: %.3f Y: %.3f Alfa: %.3f' % (robot.id, distance.real, error_x, error_y, alfa))
             msg.position.x += (dx/len(agent_list))
             msg.position.y += (dy/len(agent_list))
