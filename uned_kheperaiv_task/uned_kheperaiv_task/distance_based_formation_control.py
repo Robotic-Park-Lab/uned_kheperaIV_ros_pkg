@@ -3,7 +3,8 @@ import rclpy
 from math import sqrt
 from rclpy.node import Node
 from std_msgs.msg import String, Float64
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Point
+from visualization_msgs.msg import Marker
 
 agent_list = list()
 
@@ -15,9 +16,44 @@ class Agent():
         self.parent = parent
         self.sub_pose = self.parent.create_subscription(Pose, self.id + '/pose', self.gtpose_callback, 10)
         self.publisher_data = self.parent.create_publisher(Float64, self.id + '/data', 10)
+        self.publisher_marker = self.parent.create_publisher(Marker, self.id + '/marker', 10)
 
     def gtpose_callback(self, msg):
         self.pose = msg
+
+        line = Marker()
+        p0 = Point()
+        p0.x = self.parent.groundtruth.position.x
+        p0.y = self.parent.groundtruth.position.y
+        p0.z = self.parent.groundtruth.position.z
+
+        p1 = Point()
+        p1.x = self.pose.position.x
+        p1.y = self.pose.position.y
+        p1.z = self.pose.position.z
+
+        line.header.frame_id = 'world'
+        line.header.stamp = self.parent.get_clock().now().to_msg()
+        line.id = 1
+        line.type = 5
+        line.action = 0
+        line.scale.x = 0.05
+        line.scale.y = 0.05
+        line.scale.z = 0.05
+        if self.parent.id == 'khepera01':
+            line.color.r = 0.5
+            line.color.g = 0.5
+        if self.parent.id == 'khepera02':
+            line.color.g = 0.8
+            line.color.b = 0.5
+        if self.parent.id == 'khepera03':
+            line.color.b = 0.5
+            line.color.r = 0.5
+        line.color.a = 1.0
+        line.points.append(p1)
+        line.points.append(p0)
+
+        self.publisher_marker.publish(line)
     
 class KheperaIVDriver(Node):
     def __init__(self):
@@ -26,6 +62,7 @@ class KheperaIVDriver(Node):
         self.declare_parameter('config_file', 'path')
         self.declare_parameter('agents', 'khepera01')
         self.declare_parameter('distance', '0.2')
+        self.declare_parameter('robot', 'khepera01')
 
         # Subscription
         self.gt_pose = self.create_subscription(Pose, 'pose', self.gtpose_callback, 10)
@@ -40,6 +77,7 @@ class KheperaIVDriver(Node):
         self.get_logger().info('Formation Control::inicialize() ok.')
         # Read Params
         self.yaml_file = self.get_parameter('config_file').get_parameter_value().string_value
+        self.id = self.get_parameter('robot').get_parameter_value().string_value
         aux = self.get_parameter('agents').get_parameter_value().string_value
         id_array =  aux.split(', ')
         aux = self.get_parameter('distance').get_parameter_value().string_value

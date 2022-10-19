@@ -12,7 +12,6 @@ from webots_ros2_driver.webots_launcher import WebotsLauncher
 def generate_launch_description():
     package_dir = get_package_share_directory('uned_kheperaiv_webots')
     robot_description = pathlib.Path(os.path.join(package_dir, 'resource', 'kheperaiv.urdf')).read_text()
-    ros2_control_params = os.path.join(package_dir, 'resource', 'ros2control.yml')
     use_sim_time = LaunchConfiguration('use_sim_time', default=True)
     webots = WebotsLauncher(
         world=os.path.join(package_dir, 'worlds', 'single_khepera.wbt')
@@ -40,6 +39,14 @@ def generate_launch_description():
         }],
     )
 
+    footprint_publisher = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        output='screen',
+        arguments=[{'0.0', '0.0', '0', '0', '-1', '0', 'base_link', 'map'},
+                ],
+    )
+
     rqt_node = Node(
         package='rqt_gui',
         executable='rqt_gui',
@@ -52,6 +59,7 @@ def generate_launch_description():
     return LaunchDescription([
         webots,
         robot01_driver,
+        footprint_publisher,
         robot_state_publisher,
         rqt_node,
         launch.actions.RegisterEventHandler(
