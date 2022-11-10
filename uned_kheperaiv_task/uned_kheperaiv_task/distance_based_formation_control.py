@@ -32,23 +32,24 @@ class Agent():
         p1.y = self.pose.position.y
         p1.z = self.pose.position.z
 
-        line.header.frame_id = 'world'
+        distance = sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2)+pow(p0.z-p1.z,2))
+
+        line.header.frame_id = 'map'
         line.header.stamp = self.parent.get_clock().now().to_msg()
         line.id = 1
         line.type = 5
         line.action = 0
-        line.scale.x = 0.05
-        line.scale.y = 0.05
-        line.scale.z = 0.05
-        if self.parent.id == 'khepera01':
-            line.color.r = 0.5
-            line.color.g = 0.5
-        if self.parent.id == 'khepera02':
-            line.color.g = 0.8
-            line.color.b = 0.5
-        if self.parent.id == 'khepera03':
-            line.color.b = 0.5
-            line.color.r = 0.5
+        line.scale.x = 0.01
+        line.scale.y = 0.01
+        line.scale.z = 0.01
+        if abs(distance - self.distance ) > 0.05:
+            line.color.r = 1.0
+        else:
+            if abs(distance - self.distance ) > 0.025:
+                line.color.r = 1.0
+                line.color.g = 0.5
+            else:
+                line.color.g = 1.0
         line.color.a = 1.0
         line.points.append(p1)
         line.points.append(p0)
@@ -106,28 +107,21 @@ class KheperaIVDriver(Node):
             msg = Pose()
             msg.position.x = self.groundtruth.position.x
             msg.position.y = self.groundtruth.position.y
-            dx = dy = 0
+            dx = dy = dz = 0
             for robot in agent_list:
                 error_x = self.groundtruth.position.x - robot.pose.position.x
                 error_y = self.groundtruth.position.y - robot.pose.position.y
-                alfa = atan2(error_y,error_x)
-                dx += robot.distance * cos(alfa) - error_x
-                dy += robot.distance * sin(alfa) - error_y
-                distance = sqrt(pow(error_x,2)+pow(error_y,2))
+                error_z = self.groundtruth.position.z - robot.pose.position.z
+                distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
+                dx += (pow(robot.distance,2) - distance) * error_x
+                dy += (pow(robot.distance,2) - distance) * error_y
+                
                 msg_data = Float64()
                 msg_data.data = robot.distance - distance
                 robot.publisher_data.publish(msg_data)
                 # self.get_logger().warn('Agent %s: D: %.2f X: %.3f Y: %.3f Alfa: %.3f' % (robot.id, distance.real, error_x, error_y, alfa))
-            msg.position.x += (dx/len(agent_list))
-            msg.position.y += (dy/len(agent_list))
-
-            # TO-DO: Integral Term
-            # self.integral_x += (1/(len(agent_list)*1.0))*self.x_error*0.02
-            # self.integral_y += (1/(len(agent_list)*1.0))*self.y_error*0.02
-            # msg.position.x += self.integral_x 
-            # msg.position.y += self.integral_y
-            # self.x_error = dx
-            # self.y_error = dy
+            msg.position.x += dx/4
+            msg.position.y += dy/4
 
             self.ref_pose.publish(msg)
 

@@ -16,7 +16,62 @@ import tf_transformations
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 
+class PIDController():
+    def __init__(self, Kp, Ki, Kd, Td, Nd, UpperLimit, LowerLimit, ai, co):
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
+        self.Td = Td
+        self.Nd = Nd
+        self.UpperLimit = UpperLimit
+        self.LowerLimit = LowerLimit
+        self.integral = 0
+        self.derivative = 0
+        self.error = [0.0, 0.0]
+        self.trigger_ai = ai
+        self.trigger_co = co
+        self.trigger_last_signal = 0.0
+        self.noise = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.past_time = 0.0
+        self.last_value = 0.0
+        self.th = 0.0
 
+    def update(self, dt):
+        P = self.Kp * self.error[0]
+        self.integral = self.integral + self.Ki*self.error[1]*dt
+        self.derivative = (self.Td/(self.Td+self.Nd+dt))*self.derivative+(self.Kd*self.Nd/(self.Td+self.Nd*dt))*(self.error[0]-self.error[1])
+        out = P + self.integral + self.derivative
+        
+        if not self.UpperLimit==0.0:
+            # out_i = out
+            if out>self.UpperLimit:
+                out = self.UpperLimit
+            if out<self.LowerLimit:
+                out = self.LowerLimit
+
+            # self.integral = self.integral - (out-out_i) * sqrt(self.Kp/self.Ki)
+        
+        self.error[1] = self.error[0]
+
+        self.last_value = out
+        
+        return out
+
+    def eval_threshold(self, error):
+        # a
+        a = self.trigger_ai * abs(error)
+        if a > self.trigger_ai:
+            a = self.trigger_ai
+
+        # Threshold
+        self.th = self.trigger_co + a
+        self.inc = abs(abs(error) - self.trigger_last_signal) 
+        # Delta Error
+        if (self.inc >= abs(self.th)):
+            self.trigger_last_signal = abs(error)
+            return True
+
+        return False
 
 class KheperaWebotsDriver:
     def init(self, webots_node, properties):
@@ -66,17 +121,23 @@ class KheperaWebotsDriver:
         ## Intialize Variables
         self.past_time = self.robot.getTime()
 
+        ## Intialize Controllers
+        self.continuous = False
+        # Position
+        self.linear_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 1.0, -1.0, 0.05, 0.01)
+        # Angle
+        self.angular_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 0.0, 0.0, 0.1, 0.1)
+
         ## ROS2 Environment
-        name_value = os.environ['WEBOTS_ROBOT_NAME']
+        self.name_value = os.environ['WEBOTS_ROBOT_NAME']
         rclpy.init(args=None)
-        self.node = rclpy.create_node(name_value+'_driver')
-        self.node.get_logger().info('Webots_Node::inicialize() ok. %s' % (str(name_value)))
-        self.node.create_subscription(Twist, name_value+'/cmd_vel', self.cmd_vel_callback, 1)
-        self.node.create_subscription(Pose, name_value+'/goal_pose', self.goal_pose_callback, 1)
+        self.node = rclpy.create_node(self.name_value+'_driver')
+        self.node.get_logger().info('Webots_Node::inicialize() ok. %s' % (str(self.name_value)))
+        self.pose_publisher = self.node.create_publisher(Pose, self.name_value+'/local_pose', 10)
+        self.node.create_subscription(Twist, self.name_value+'/cmd_vel', self.cmd_vel_callback, 1)
+        self.node.create_subscription(Pose, self.name_value+'/goal_pose', self.goal_pose_callback, 1)
         self.tfbr = TransformBroadcaster(self.node)
     
-        
-
     def publish_laserscan_data(self):
         left_range = self.range_left.getValue()
         frontleft_range = self.range_frontleft.getValue()
@@ -120,7 +181,23 @@ class KheperaWebotsDriver:
         # Get pose
         self.global_x = self.gps.getValues()[0]
         self.global_y = self.gps.getValues()[1]
+        roll = self.imu.getRollPitchYaw()[0]
+        pitch = self.imu.getRollPitchYaw()[1]
         self.global_yaw = self.imu.getRollPitchYaw()[2]
+        
+        q = tf_transformations.quaternion_from_euler(roll, pitch, self.global_yaw)
+        t_base = TransformStamped()
+        t_base.header.stamp = Time(seconds=self.robot.getTime()).to_msg()
+        t_base.header.frame_id = 'map'
+        t_base.child_frame_id = self.name_value
+        t_base.transform.translation.x = self.global_x
+        t_base.transform.translation.y = self.global_y
+        t_base.transform.translation.z = self.gps.getValues()[2]
+        t_base.transform.rotation.x = q[0]
+        t_base.transform.rotation.y = q[1]
+        t_base.transform.rotation.z = q[2]
+        t_base.transform.rotation.w = q[3]
+        self.tfbr.sendTransform(t_base)
         
         if not self.init_pose:
             self.target_pose.position.x = self.global_x
@@ -131,20 +208,18 @@ class KheperaWebotsDriver:
         distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
         angle_error = -self.global_yaw+atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
 
-        self.test = Twist()
-        self.test = self.forces_field(dt, distance_error, angle_error)
-        # distance_error = sqrt(pow(self.test.position.x,2)+pow(self.test.position.y,2))
-        # angle_error = -self.global_yaw+atan2(self.test.position.y,self.test.position.x)
-
-        self.target_twist = self.pid_controller(distance_error, angle_error)
-
+        self.target_twist = self.forces_field(dt, distance_error, angle_error)
         
+        # self.linear_controller.error[0] = distance_error
+        # self.angular_controller.error[0] = angle_error
+        # self.target_twist.linear.x = self.linear_controller.update(dt)
+        # self.target_twist.angular.z = self.angular_controller.update(dt)
 
         # Velocity [rad/s]
-        self.motor_left.setVelocity((self.test.linear.x/0.042-0.10540*self.test.angular.z))
-        self.motor_right.setVelocity((self.test.linear.x/0.042+0.10540*self.test.angular.z))
+        self.motor_left.setVelocity((self.target_twist.linear.x/0.042-0.10540*self.target_twist.angular.z))
+        self.motor_right.setVelocity((self.target_twist.linear.x/0.042+0.10540*self.target_twist.angular.z))
 
-        # TO-DO: Introudcir Modelo Cinemático Diferencial Directo -> /odom
+        # TO-DO: Introducir Modelo Cinemático Diferencial Directo -> /odom
 
         self.past_time = self.robot.getTime()
 
@@ -152,22 +227,10 @@ class KheperaWebotsDriver:
         self.node.get_logger().debug('Target: X:%f Y:%f' % (self.target_pose.position.x,self.target_pose.position.y))
         # self.node.get_logger().debug('Force Field: X:%f Y:%f' % (self.test.position.x,self.test.position.y))
         self.node.get_logger().debug('PID cmd: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
-        self.node.get_logger().debug('Force Field: vX:%f vZ:%f' % (self.test.linear.x,self.test.angular.z))
+        self.node.get_logger().debug('Force Field: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
         self.node.get_logger().debug('Distance:%f Angle:%f' % (distance_error.real,angle_error))
 
-    def pid_controller(self, error, angle):
-
-        control_signal = Twist()
-
-        if error.real>0.01:
-            control_signal.linear.x = error.real*cos(angle)
-        else:
-            control_signal.linear.x = 0.0
-
-        control_signal.angular.z = sin(angle)*10
-
-        return control_signal
-
+    
     def forces_field(self,dt, error, angle_error):
         Ka = -1.0
         Kr = 150
@@ -244,7 +307,7 @@ class KheperaWebotsDriver:
 
         ## Cmd_Vel
         out = Twist()
-        if F.real>0.01:
+        if F.real>0.001:
             out.linear.x = -(Fa_x+Fr_x)
         else:
             out.linear.x = 0.0
