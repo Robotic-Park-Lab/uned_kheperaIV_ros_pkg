@@ -1,0 +1,18 @@
+<?xml version="1.0" ?>
+<robot name="turtlebot01">
+    <webots>
+
+        <plugin type="webots_ros2_driver::Ros2IMU">
+            <enabled>true</enabled>
+            <updateRate>20</updateRate>
+            <topicName>/imu</topicName>
+            <alwaysOn>false</alwaysOn>
+            <frameName>imu_link</frameName>
+            <inertialUnitName>inertial_unit</inertialUnitName>
+            <gyroName>gyro</gyroName>
+            <accelerometerName>accelerometer</accelerometerName>
+        </plugin>
+        
+        <plugin type="uned_kheperaiv_webots.turtlebot3burger_driver.TurtlebotWebotsDriver" />
+    </webots>
+</robot>

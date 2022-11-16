@@ -41,7 +41,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'khepera_driver = uned_kheperaiv_webots.khepera_driver:main'
+            'khepera_driver = uned_kheperaiv_webots.khepera_driver:main',
+            'turtlebot3burger_driver = uned_kheperaiv_webots.turtlebot3burger_driver:main'
         ],
     },
 )

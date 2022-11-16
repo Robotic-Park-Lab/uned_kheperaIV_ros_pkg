@@ -7,7 +7,7 @@ from rclpy.node import Node
 from rclpy.time import Time
 
 from geometry_msgs.msg import Twist, Pose
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import LaserScan, Range
 from nav_msgs.msg import Odometry
 
 from math import atan2, cos, sin, degrees, radians, pi
@@ -134,6 +134,7 @@ class KheperaWebotsDriver:
         self.node = rclpy.create_node(self.name_value+'_driver')
         self.node.get_logger().info('Webots_Node::inicialize() ok. %s' % (str(self.name_value)))
         self.pose_publisher = self.node.create_publisher(Pose, self.name_value+'/local_pose', 10)
+        self.range_publisher = self.node.create_publisher(Range, self.name_value+'/range0', 10)
         self.node.create_subscription(Twist, self.name_value+'/cmd_vel', self.cmd_vel_callback, 1)
         self.node.create_subscription(Pose, self.name_value+'/goal_pose', self.goal_pose_callback, 1)
         self.tfbr = TransformBroadcaster(self.node)
@@ -225,7 +226,6 @@ class KheperaWebotsDriver:
 
         self.node.get_logger().debug('Pose3D: X:%f Y:%f yaw:%f' % (self.gps.getValues()[0],self.gps.getValues()[1],self.imu.getRollPitchYaw()[2]))
         self.node.get_logger().debug('Target: X:%f Y:%f' % (self.target_pose.position.x,self.target_pose.position.y))
-        # self.node.get_logger().debug('Force Field: X:%f Y:%f' % (self.test.position.x,self.test.position.y))
         self.node.get_logger().debug('PID cmd: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
         self.node.get_logger().debug('Force Field: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
         self.node.get_logger().debug('Distance:%f Angle:%f' % (distance_error.real,angle_error))
@@ -246,6 +246,13 @@ class KheperaWebotsDriver:
         self.node.get_logger().debug('Fa: %.2f Fa_x %.2f Fa_y %.2f ' % (Fa.real, Fa_x, Fa_y))
 
         # Reactive force
+        msg = Range()
+        msg.radiation_type = 0
+        msg.min_range = 0.1
+        msg.max_range = 3.5
+        msg.header.stamp = Time(seconds=self.robot.getTime()).to_msg()
+        msg.header.frame_id = self.name_value
+
         limit_distance = 30
         Fr_x = Fr_y = 0
         sensor_value = self.range_left.getValue() * 100
@@ -259,6 +266,8 @@ class KheperaWebotsDriver:
             Fr_y += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*sin(self.global_yaw+radians(45))
             # self.node.get_logger().debug('Sensor 2: %.2f Fr_x %.2f Fr_y %.2f ' % (sensor_value,  Fr_x, Fr_y))
         sensor_value = self.range_front.getValue() * 100
+        msg.range = self.range_front.getValue()
+        self.range_publisher.publish(msg)
         if sensor_value<limit_distance:
             Fr_x += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*cos(self.global_yaw)
             Fr_y += Kr * ((1/sensor_value)-(1/limit_distance))*(1/pow(sensor_value,2))*sin(self.global_yaw)

@@ -1,4 +1,3 @@
-from math import atan2, cos, sin
 import rclpy
 from math import sqrt
 from rclpy.node import Node
@@ -15,7 +14,7 @@ class Agent():
         self.pose = Pose()
         self.parent = parent
         self.sub_pose = self.parent.create_subscription(Pose, self.id + '/pose', self.gtpose_callback, 10)
-        self.publisher_data = self.parent.create_publisher(Float64, self.id + '/data', 10)
+        self.publisher_data_ = self.parent.create_publisher(Float64, self.id + '/data', 10)
         self.publisher_marker = self.parent.create_publisher(Marker, self.id + '/marker', 10)
 
     def gtpose_callback(self, msg):
@@ -66,10 +65,13 @@ class KheperaIVDriver(Node):
         self.declare_parameter('robot', 'khepera01')
 
         # Subscription
-        self.gt_pose = self.create_subscription(Pose, 'pose', self.gtpose_callback, 10)
-        self.sub_order = self.create_subscription(String, 'swarm/status', self.order_callback, 10)
+        self.gt_pose_ = self.create_subscription(Pose, 'pose', self.gtpose_callback, 10)
+        self.sub_status_ = self.create_subscription(String, 'swarm/status', self.order_callback, 10)
+        self.sub_order_ = self.create_subscription(String, 'swarm/order', self.order_callback, 1)
+        self.sub_targetpose_ = self.create_subscription(Pose, 'target_pose', self.targetpose_callback, 10)
+        self.sub_swarmgoalpose_ = self.create_subscription(Pose, 'swarm/goal_pose', self.swarm_goalpose_callback, 1)
         # Publisher
-        self.ref_pose = self.create_publisher(Pose, 'goal_pose', 10)
+        self.pub_goalpose_ = self.create_publisher(Pose, 'goal_pose', 10)
 
         self.initialize()
         self.timer = self.create_timer(0.02, self.task_manager)
@@ -89,7 +91,10 @@ class KheperaIVDriver(Node):
             agent_list.append(robot)
 
         self.groundtruth = Pose()
-        self.init = False
+        self.distance_formation_bool = False
+        self.leader = False
+        self.centroid_leader = False
+        self.leader_cmd = Pose()
         self.x_error = 0
         self.y_error = 0
         self.integral_x = 0
@@ -99,31 +104,56 @@ class KheperaIVDriver(Node):
     def gtpose_callback(self, msg):
         self.groundtruth = msg
 
+    def targetpose_callback(self, msg):
+        self.target_pose = msg
+        self.leader = True
+
     def order_callback(self, msg):
-        self.init = True
+        self.get_logger().info('Order: "%s"' % msg.data)
+        if msg.data == 'distance_formation_run':
+            self.distance_formation_bool = True
+        elif msg.data == 'formation_stop':
+            self.distance_formation_bool = False
+        elif msg.data == 'Ready':
+            self.distance_formation_bool = True
+        else:
+            self.get_logger().error('"%s": Unknown order' % (msg.data))
+
+    def swarm_goalpose_callback(self, msg):
+        if not self.centroid_leader:
+            self.get_logger().info('Formation Control::Leader-> Centroid.')
+        self.centroid_leader = True
+        self.leader_cmd = msg
 
     def task_manager(self):
-        if self.init:
+        if self.distance_formation_bool:
             msg = Pose()
             msg.position.x = self.groundtruth.position.x
             msg.position.y = self.groundtruth.position.y
-            dx = dy = dz = 0
             for robot in agent_list:
                 error_x = self.groundtruth.position.x - robot.pose.position.x
                 error_y = self.groundtruth.position.y - robot.pose.position.y
                 error_z = self.groundtruth.position.z - robot.pose.position.z
                 distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
-                dx += (pow(robot.distance,2) - distance) * error_x
-                dy += (pow(robot.distance,2) - distance) * error_y
+                msg.position.x += (1/4) * (pow(robot.distance,2) - distance) * error_x
+                msg.position.y += (1/4) * (pow(robot.distance,2) - distance) * error_y
                 
                 msg_data = Float64()
-                msg_data.data = robot.distance - distance
-                robot.publisher_data.publish(msg_data)
-                # self.get_logger().warn('Agent %s: D: %.2f X: %.3f Y: %.3f Alfa: %.3f' % (robot.id, distance.real, error_x, error_y, alfa))
-            msg.position.x += dx/4
-            msg.position.y += dy/4
+                msg_data.data = robot.distance - sqrt(distance)
+                robot.publisher_data_.publish(msg_data)
 
-            self.ref_pose.publish(msg)
+            if self.leader:
+                msg.position.x += (1/4) * (-pow(self.groundtruth.position.x - self.target_pose.position.x,2)) * (self.groundtruth.position.x - self.target_pose.position.x)
+                msg.position.y += (1/4) * (-pow(self.groundtruth.position.y - self.target_pose.position.y,2)) * (self.groundtruth.position.y - self.target_pose.position.y)
+                self.get_logger().info('Target-> X: %.3f Y: %.3f \tCMD-> X: %.3f Y: %.3f \tPose-> X: %.3f Y: %.3f' % (self.target_pose.position.x , self.target_pose.position.y, msg.position.x, msg.position.y, self.groundtruth.position.x, self.groundtruth.position.y))
+
+            if self.centroid_leader:
+                msg.position.x += self.leader_cmd.position.x
+                msg.position.y += self.leader_cmd.position.y
+                msg.position.z += self.leader_cmd.position.z
+
+            self.pub_goalpose_.publish(msg)
+            self.get_logger().debug('CMD-> X: %.3f Y: %.3f \tPose-> X: %.3f Y: %.3f' % (msg.position.x, msg.position.y, self.groundtruth.position.x, self.groundtruth.position.y))
 
 def main(args=None):
     rclpy.init(args=args)
