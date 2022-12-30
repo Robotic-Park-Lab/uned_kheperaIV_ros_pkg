@@ -173,6 +173,7 @@ class KheperaWebotsDriver:
 
     def goal_pose_callback(self, pose):
         self.target_pose = pose
+        self.node.get_logger().debug('Target: X:%f Y:%f' % (self.target_pose.position.x,self.target_pose.position.y))
 
     def step(self):
         rclpy.spin_once(self.node, timeout_sec=0)
@@ -183,7 +184,7 @@ class KheperaWebotsDriver:
         self.global_x = self.gps.getValues()[0]
         self.global_y = self.gps.getValues()[1]
         roll = self.imu.getRollPitchYaw()[0]
-        pitch = self.imu.getRollPitchYaw()[1]
+        pitch =  self.imu.getRollPitchYaw()[1]
         self.global_yaw = self.imu.getRollPitchYaw()[2]
         
         q = tf_transformations.quaternion_from_euler(roll, pitch, self.global_yaw)
@@ -224,8 +225,8 @@ class KheperaWebotsDriver:
 
         self.past_time = self.robot.getTime()
 
-        self.node.get_logger().debug('Pose3D: X:%f Y:%f yaw:%f' % (self.gps.getValues()[0],self.gps.getValues()[1],self.imu.getRollPitchYaw()[2]))
-        self.node.get_logger().debug('Target: X:%f Y:%f' % (self.target_pose.position.x,self.target_pose.position.y))
+        self.node.get_logger().debug('Pose3D: X:%f Y:%f yaw:%f' % (self.global_x,self.global_y,self.global_yaw))
+        
         self.node.get_logger().debug('PID cmd: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
         self.node.get_logger().debug('Force Field: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
         self.node.get_logger().debug('Distance:%f Angle:%f' % (distance_error.real,angle_error))
