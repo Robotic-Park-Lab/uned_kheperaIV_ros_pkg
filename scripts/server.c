@@ -164,6 +164,8 @@ int main(int argc, char *argv[]) {
   kh4_SetMode(kh4RegSpeed,dsPic );
   kh4_SetRGBLeds(0,255,0,0,255,0,0,255,0, dsPic);
 
+  printf("Connected to ROS2 Client\r\n");
+
   // Main loop
   while (quitReq==0){
     // Clear the buffer
@@ -180,7 +182,7 @@ int main(int argc, char *argv[]) {
     if (buffer[0]=='d'){
       sscanf(buffer,"%*c %d %d",&vel[0],&vel[1]);
       printf("Move init\n");
-      kh4_set_speed(vel[0] ,vel[1],dsPic );
+      kh4_set_speed(vel[0]-vel[1]*0.5,vel[0]+vel[1]*0.5,dsPic );
     }
     else if(strcmp(buffer, "forward") == 0){
       printf("Forward move init\n");

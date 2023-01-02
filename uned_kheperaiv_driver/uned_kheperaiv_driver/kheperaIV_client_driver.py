@@ -2,7 +2,8 @@ import rclpy
 import socket
 
 from rclpy.node import Node
-from std_msgs.msg import String, UInt16, Float64
+from std_msgs.msg import String
+from geometry_msgs.msg import Twist
 
 class KheperaIVDriver(Node):
     def __init__(self):
@@ -16,6 +17,7 @@ class KheperaIVDriver(Node):
         self.publisher_status = self.create_publisher(String,'/status', 10)
         # Subscription
         self.create_subscription(String, '/cmd', self.cmd_callback, 1)
+        self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 1)
 
         self.initialize()
 
@@ -37,7 +39,6 @@ class KheperaIVDriver(Node):
         self.sock.connect(server_address)
 
     def cmd_callback(self, msg):
-        self.get_logger().info('Khepera IV Driver: cmd_callback() In progress')
         # Read a command
         command = msg.data
 
@@ -47,6 +48,12 @@ class KheperaIVDriver(Node):
         if command == "get_data":
             data = self.sock.recv(1024).decode('utf-8')
             self.get_logger().info('Khepera IV Driver: sensors: %s' % data)
+
+    def cmd_vel_callback(self, msg):
+        vel = msg.linear.x * 100
+        w = msg.angular.z * 100
+        command = "d " + str(round(vel)) + " " + str(round(w))
+        self.sock.sendall(bytes(command, 'utf-8'))
 
 
 def main(args=None):
