@@ -11,7 +11,7 @@ WorldInfo {
   info [
     "Sample of how the indoor objects can be placed"
   ]
-  basicTimeStep 16
+  basicTimeStep 20
 }
 Viewpoint {
   orientation -0.2384211186443301 0.0193259489049853 0.9709695555903429 2.676012761285852

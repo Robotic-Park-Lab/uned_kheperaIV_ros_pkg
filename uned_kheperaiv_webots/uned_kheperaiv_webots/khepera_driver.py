@@ -188,6 +188,16 @@ class KheperaWebotsDriver:
         self.global_yaw = self.imu.getRollPitchYaw()[2]
         
         q = tf_transformations.quaternion_from_euler(roll, pitch, self.global_yaw)
+        self.gt_pose = Pose()
+        self.gt_pose.position.x = self.global_x
+        self.gt_pose.position.y = self.global_y
+        self.gt_pose.position.z = 0.0
+        self.gt_pose.orientation.x = q[0]
+        self.gt_pose.orientation.y = q[1]
+        self.gt_pose.orientation.z = q[2]
+        self.gt_pose.orientation.w = q[3]
+        self.pose_publisher.publish(self.gt_pose)
+        
         t_base = TransformStamped()
         t_base.header.stamp = Time(seconds=self.robot.getTime()).to_msg()
         t_base.header.frame_id = 'map'
