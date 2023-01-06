@@ -13,7 +13,7 @@ class Agent():
         self.distance = distance
         self.pose = Pose()
         self.parent = parent
-        self.sub_pose = self.parent.create_subscription(Pose, self.id + '/pose', self.gtpose_callback, 10)
+        self.sub_pose = self.parent.create_subscription(Pose, self.id + '/local_pose', self.gtpose_callback, 10)
         self.publisher_data_ = self.parent.create_publisher(Float64, self.id + '/data', 10)
         self.publisher_marker = self.parent.create_publisher(Marker, self.id + '/marker', 10)
 
@@ -65,7 +65,7 @@ class KheperaIVDriver(Node):
         self.declare_parameter('robot', 'khepera01')
 
         # Subscription
-        self.gt_pose_ = self.create_subscription(Pose, 'pose', self.gtpose_callback, 10)
+        self.gt_pose_ = self.create_subscription(Pose, 'local_pose', self.gtpose_callback, 10)
         self.sub_status_ = self.create_subscription(String, 'swarm/status', self.order_callback, 10)
         self.sub_order_ = self.create_subscription(String, 'swarm/order', self.order_callback, 1)
         self.sub_targetpose_ = self.create_subscription(Pose, 'target_pose', self.targetpose_callback, 10)
@@ -110,8 +110,10 @@ class KheperaIVDriver(Node):
 
     def order_callback(self, msg):
         self.get_logger().info('Order: "%s"' % msg.data)
+        self.get_logger().info('Test0')
         if msg.data == 'distance_formation_run':
             self.distance_formation_bool = True
+            self.get_logger().info('Test1')
         elif msg.data == 'formation_stop':
             self.distance_formation_bool = False
         elif msg.data == 'Ready':

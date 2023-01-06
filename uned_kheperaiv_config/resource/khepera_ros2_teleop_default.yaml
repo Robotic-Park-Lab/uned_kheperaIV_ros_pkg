@@ -1,0 +1,10 @@
+# Default Khepera IV parameters to ros2 node
+khepera01:
+  local_pose:
+    enable: True
+    T: 20
+  task: 
+    enable: False
+    role: Null
+    type: Null
+    relationship: Null
