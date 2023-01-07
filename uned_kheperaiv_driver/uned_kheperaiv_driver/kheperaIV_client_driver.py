@@ -17,18 +17,18 @@ class KheperaIVDriver(Node):
         self.declare_parameter('port_number', 50000)
         self.declare_parameter('id', 'khepera01')
         # Publisher
-        self.publisher_status = self.create_publisher(String,'/status', 10)
-        self.pub_pose_ = self.create_publisher(Pose,'/local_pose', 10)
+        self.publisher_status = self.create_publisher(String,'status', 10)
+        self.pub_pose_ = self.create_publisher(Pose,'local_pose', 10)
         # Subscription
-        self.create_subscription(Pose, '/pose', self.pose_callback, 1)
-        self.create_subscription(Pose, '/goal_pose', self.goalpose_callback, 10)
-        self.create_subscription(String, '/cmd', self.cmd_callback, 1)
-        self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 1)
+        self.create_subscription(Pose, 'pose', self.pose_callback, 1)
+        self.create_subscription(Pose, 'goal_pose', self.goalpose_callback, 10)
+        self.create_subscription(String, 'cmd', self.cmd_callback, 1)
+        self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 1)
 
         self.initialize()
 
-        self.timer_task = self.create_timer(0.2, self.get_pose)
-        self.timer_iterate = self.create_timer(0.2, self.iterate)
+        self.timer_task = self.create_timer(0.5, self.get_pose)
+        self.timer_iterate = self.create_timer(1.0, self.iterate)
 
     def initialize(self):
         self.get_logger().info('KheperaIVDriver::inicialize() ok.')
@@ -68,7 +68,7 @@ class KheperaIVDriver(Node):
     def cmd_vel_callback(self, msg):
         vel = msg.linear.x * 100
         w = msg.angular.z * 100
-        command = "d " + str(round(vel)) + " " + str(round(w))
+        command = "d " + str(round(msg.linear.x,3)) + " " + str(round(msg.angular.z,3))
         self.sock.sendall(bytes(command, 'utf-8'))
 
     def pose_callback(self, msg):
@@ -78,6 +78,7 @@ class KheperaIVDriver(Node):
             self.goal_pose = self.pose
 
     def goalpose_callback(self, msg):
+        self.get_logger().info('New Goal pose: %.2f, %.2f' % (msg.position.x, msg.position.y))
         self.goal_pose = msg
     
     def get_pose(self):
@@ -88,11 +89,14 @@ class KheperaIVDriver(Node):
 
         data = self.sock.recv(1024).decode('utf-8')
         value = data.split(',')
-        d = float(value[0])
-        self.theta += float(value[1])
-        self.pose.position.x += d * cos(self.theta)
-        self.pose.position.y += d * sin(self.theta)
-        self.pub_pose_.publish(self.pose)
+        try:
+            d = float(value[0])
+            self.theta += float(value[1])
+            self.pose.position.x += d * cos(self.theta)
+            self.pose.position.y += d * sin(self.theta)
+            self.pub_pose_.publish(self.pose)
+        except:
+            pass
 
         t_base = TransformStamped()
         t_base.header.stamp = self.get_clock().now().to_msg()
@@ -112,50 +116,38 @@ class KheperaIVDriver(Node):
     def iterate(self):
         if self.init_pose:
             cmd_vel = Twist()
-            cmd_vel = self.forces_field()
-            self.cmd_vel_callback(cmd_vel)
+            cmd_vel = self.position_controller()
+            self.get_logger().debug('Pose Vx: %s W: %s' % (str(round(cmd_vel.linear.x,3)), str(round(cmd_vel.angular.z,3))))
+            # cmd_vel.angular.z = 0.0
+            command = "d " + str(round(cmd_vel.linear.x,3)) + " " + str(round(cmd_vel.angular.z,3))
+            self.sock.sendall(bytes(command, 'utf-8'))
 
 
-    def forces_field(self):
-        Ka = 1.0
+    def position_controller(self):
+        Kp = 10
+        Kw = 1
+        Vmax = 10
+        Wmax = 2.5/2
+
+        d = sqrt(pow(self.goal_pose.position.x-self.pose.position.x,2)+pow(self.goal_pose.position.y-self.pose.position.y,2))
 
         # Attractive force
         error_x = (self.goal_pose.position.x-self.pose.position.x)*cos(self.theta)+(self.goal_pose.position.y-self.pose.position.y)*sin(self.theta)
         error_y = -(self.goal_pose.position.x-self.pose.position.x)*sin(self.theta)+(self.goal_pose.position.y-self.pose.position.y)*cos(self.theta)
 
-        Fa_x = Ka * error_x
-        Fa_y = Ka * error_y
+        alfa = atan2(self.goal_pose.position.y-self.pose.position.y,self.goal_pose.position.x-self.pose.position.x)
+        oc = alfa - self.theta
+        w = Kw * oc # sin(oc)
+        
+        self.get_logger().debug('alfa: %.2f theta: %.2f oc: %.2f e_x: %.3f e_y: %.3f' % (alfa, self.theta, oc, error_x, error_y))
+        v = error_x * Kp
 
-        Fa = sqrt(pow(Fa_x,2)+pow(Fa_y,2))
-        self.get_logger().debug('Fa: %.2f Fa_x %.2f Fa_y %.2f ' % (Fa.real, Fa_x, Fa_y))
-
-        # Reactive force
-        Fr_x = Fr_y = 0
-        Fr = 0
-
-        # Gloabal force
-        F = sqrt(pow(Fa,2)+pow(Fr,2))
-        # Movement
-        vmax = 1 # [m/s]
-        wmax = 1.5 # [rad/s]
-        vx = vy = 0
-        if F.real>0.01:
-            vx = -(Fa_x+Fr_x)/F.real
-            vy = -(Fa_y+Fr_y)/F.real
-
-        v = sqrt(pow(vx,2)+pow(vy,2))
-        w = wmax*sin(atan2(vy,vx))*10
-
-        self.get_logger().debug('V: %.2f Vx: %.2f Vy: %.2f W: %.2f' % (v.real, vx, vy, w))
-
-
+        if abs(d)<0.01:
+            v = 0.0
+            w = 0.0
         ## Cmd_Vel
         out = Twist()
-        if F.real>0.001:
-            out.linear.x = (Fa_x+Fr_x)
-        else:
-            out.linear.x = 0.0
-
+        out.linear.x = v
         out.angular.z = w
 
         return out 
