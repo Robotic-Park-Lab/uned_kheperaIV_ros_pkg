@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -71,8 +72,12 @@ int main(int argc, char *argv[]) {
 
   // Drive variables
   int out=0,speed=DEFAULT_SPEED,vsl,vsr,anymove=0;
-  int vel[2];
+  int vel[2], vel_l, vel_r;
+  float v, w0;
 	struct timeval startt,endt;
+  float w = 0.f;
+  float d = 0.f;
+  float theta = 0.f;
 
   /* Set the libkhepera debug level - Highly recommended for development. */
   // kb_set_debug_level(2);
@@ -161,13 +166,15 @@ int main(int argc, char *argv[]) {
   }
 
   // Ready visual signal
+  kh4_ResetEncoders(dsPic);
   kh4_SetMode(kh4RegSpeed,dsPic );
-  kh4_SetRGBLeds(0,255,0,0,255,0,0,255,0, dsPic);
+  kh4_SetRGBLeds(0,255,0,0,255,0,0,0,255, dsPic);
 
   printf("Connected to ROS2 Client\r\n");
 
   // Main loop
   while (quitReq==0){
+
     // Clear the buffer
     memset(buffer, 0, 256);
 
@@ -180,41 +187,36 @@ int main(int argc, char *argv[]) {
 
     // Check the command received from the client
     if (buffer[0]=='d'){
-      sscanf(buffer,"%*c %d %d",&vel[0],&vel[1]);
-      printf("Move init\n");
-      kh4_set_speed(vel[0]-vel[1]*0.5,vel[0]+vel[1]*0.5,dsPic );
-    }
-    else if(strcmp(buffer, "forward") == 0){
-      printf("Forward move init\n");
-      kh4_set_speed(speed ,speed,dsPic );
-      printf("Forward move end\n");
-    }
-    else if (strcmp(buffer, "back") == 0){
-      printf("Back move init\n");
-      kh4_set_speed(-speed ,-speed,dsPic );
-      printf("Back move end\n");
-    }
-    else if (strcmp(buffer, "left") == 0){
-      printf("Left move init\n");
-      if (speed > ROT_SPEED_HIGH_TRESH) // at high speed, rotate too fast
-				kh4_set_speed(-speed*ROTATE_HIGH_SPEED_FACT ,speed*ROTATE_HIGH_SPEED_FACT ,dsPic );
-			else
-				kh4_set_speed(-speed*ROTATE_LOW_SPEED_FACT ,speed*ROTATE_LOW_SPEED_FACT ,dsPic );
-      printf("Left move end\n");
-    }
-    else if (strcmp(buffer, "right") == 0){
-      kh4_SetRGBLeds(0,255,0,0,255,0,0,255,0, dsPic);
-      printf("Right move init\n");
-      
-      if (speed > ROT_SPEED_HIGH_TRESH) // at high speed, rotate too fast
-				kh4_set_speed(speed*ROTATE_HIGH_SPEED_FACT ,-speed*ROTATE_HIGH_SPEED_FACT ,dsPic );
-			else
-				kh4_set_speed(speed*ROTATE_LOW_SPEED_FACT ,-speed*ROTATE_LOW_SPEED_FACT ,dsPic );
-      printf("Right move end\n");
+      sscanf(buffer,"%*c %f %f",&v,&w0);
+      printf("cmd: %.3f %.3f \n", &v, &w0);
+      vel_r = (int)((v+w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
+      vel_l = (int)((v-w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
+      kh4_set_speed(vel_l, vel_r,dsPic );
     }
     else if (strcmp(buffer, "stop") == 0){
       printf("Stop move\n");
       kh4_set_speed(0 ,0,dsPic );
+    }
+    else if (buffer[0]=='p'){
+      // sscanf(buffer,"%*c %f %f",&xp,&yp);
+      kh4_get_position(&pl,&pr,dsPic);
+      kh4_ResetEncoders(dsPic);
+      d = (pr + pl)*KH4_PULSE_TO_MM/2000;
+      w = (pr - pl)*KH4_PULSE_TO_MM/105;
+      //theta =+ w;
+      //xp =+ d; // *cos(theta);
+      // yp =+ d; // *sin(theta);
+      // Send the data string to the client
+      char data_str[256];
+      sprintf(data_str, "%.4f,%.4f", d,w);
+      write(newsockfd, data_str, strlen(data_str));
+      //printf("cmd: %.6f %.6f \n", &d, &w);
+      
+    }
+    else if (strcmp(buffer, "reset_pose") == 0){
+      sscanf(buffer,"%*c %d %d",&sl,&sr);
+      kh4_SetMode(kh4RegPosition,dsPic );
+			kh4_set_position(sl,sr, dsPic);
     }
     else if (strcmp(buffer, "get_data") == 0){
       // Read data from the sensors
