@@ -8,3 +8,13 @@ khepera01:
     role: Null
     type: Null
     relationship: Null
+
+khepera02:
+  local_pose:
+    enable: True
+    T: 20
+  task: 
+    enable: False
+    role: Null
+    type: Null
+    relationship: Null
