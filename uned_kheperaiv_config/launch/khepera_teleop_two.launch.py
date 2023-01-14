@@ -9,6 +9,10 @@ def generate_launch_description():
     config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_teleop_default.yaml')
     rviz_config_path = os.path.join(config_package_dir, 'rviz', 'test.rviz')
 
+    hostname = '10.196.92.136'
+    buffer_size = 200
+    topic_namespace = 'vicon'
+
     robot01_node = Node(
         package='uned_kheperaiv_driver',
         executable='kheperaIV_client_driver',
@@ -54,9 +58,18 @@ def generate_launch_description():
 
     )
 
+    vicon_node = Node(
+        package='vicon_receiver',
+        executable='vicon_client',
+        name='vicon_node',
+        parameters=[
+            {'hostname': hostname, 'buffer_size': buffer_size, 'namespace': topic_namespace}
+        ])
+
     return LaunchDescription([
         robot01_node,
         robot02_node,
         rqt_node,
-        rviz_node
+        rviz_node,
+        vicon_node
     ])

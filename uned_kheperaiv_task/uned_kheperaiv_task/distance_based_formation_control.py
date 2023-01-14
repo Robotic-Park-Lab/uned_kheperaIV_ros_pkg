@@ -110,7 +110,6 @@ class KheperaIVDriver(Node):
 
     def order_callback(self, msg):
         self.get_logger().info('Order: "%s"' % msg.data)
-        self.get_logger().info('Test0')
         if msg.data == 'distance_formation_run':
             self.distance_formation_bool = True
             self.get_logger().info('Test1')
@@ -142,6 +141,8 @@ class KheperaIVDriver(Node):
                 
                 msg_data = Float64()
                 msg_data.data = robot.distance - sqrt(distance)
+                if self.id == 'khepera01':
+                    self.get_logger().debug('Agent %s: eX: %.3f eY: %.3f error: %.3f' % (robot.id, msg.position.x, msg.position.y, msg_data.data))
                 robot.publisher_data_.publish(msg_data)
 
             if self.leader:
@@ -155,7 +156,8 @@ class KheperaIVDriver(Node):
                 msg.position.z += self.leader_cmd.position.z
 
             self.pub_goalpose_.publish(msg)
-            self.get_logger().debug('CMD-> X: %.3f Y: %.3f \tPose-> X: %.3f Y: %.3f' % (msg.position.x, msg.position.y, self.groundtruth.position.x, self.groundtruth.position.y))
+            if self.id == 'khepera01':
+                self.get_logger().debug('CMD-> X: %.3f Y: %.3f \tPose-> X: %.3f Y: %.3f' % (msg.position.x, msg.position.y, self.groundtruth.position.x, self.groundtruth.position.y))
 
 def main(args=None):
     rclpy.init(args=args)

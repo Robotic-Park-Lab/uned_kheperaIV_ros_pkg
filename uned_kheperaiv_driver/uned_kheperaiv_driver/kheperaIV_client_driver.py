@@ -6,6 +6,7 @@ from std_msgs.msg import String
 from geometry_msgs.msg import Twist, Pose, TransformStamped
 from math import sqrt, cos, sin, atan2
 from tf2_ros import TransformBroadcaster
+from tf_transformations import euler_from_quaternion
 
 class KheperaIVDriver(Node):
     def __init__(self):
@@ -27,8 +28,8 @@ class KheperaIVDriver(Node):
 
         self.initialize()
 
-        self.timer_task = self.create_timer(0.5, self.get_pose)
-        self.timer_iterate = self.create_timer(1.0, self.iterate)
+        # self.timer_task = self.create_timer(0.5, self.get_pose)
+        self.timer_iterate = self.create_timer(0.01, self.iterate)
 
     def initialize(self):
         self.get_logger().info('KheperaIVDriver::inicialize() ok.')
@@ -73,31 +74,7 @@ class KheperaIVDriver(Node):
 
     def pose_callback(self, msg):
         self.pose = msg
-        if not self.init_pose:
-            self.init_pose = True
-            self.goal_pose = self.pose
-
-    def goalpose_callback(self, msg):
-        self.get_logger().info('New Goal pose: %.2f, %.2f' % (msg.position.x, msg.position.y))
-        self.goal_pose = msg
-    
-    def get_pose(self):
-        # Read a command
-        command = 'p'
-        # Send the command to the server
-        self.sock.sendall(bytes(command, 'utf-8'))
-
-        data = self.sock.recv(1024).decode('utf-8')
-        value = data.split(',')
-        try:
-            d = float(value[0])
-            self.theta += float(value[1])
-            self.pose.position.x += d * cos(self.theta)
-            self.pose.position.y += d * sin(self.theta)
-            self.pub_pose_.publish(self.pose)
-        except:
-            pass
-
+        self.pub_pose_.publish(self.pose)
         t_base = TransformStamped()
         t_base.header.stamp = self.get_clock().now().to_msg()
         t_base.header.frame_id = 'map'
@@ -112,6 +89,32 @@ class KheperaIVDriver(Node):
         self.tfbr.sendTransform(t_base)
         
         self.get_logger().debug('Pose X: %f Y: %f Yaw: %f' % (self.pose.position.x, self.pose.position.y, self.theta))
+        if not self.init_pose:
+            self.init_pose = True
+            self.goal_pose = self.pose
+
+    def goalpose_callback(self, msg):
+        self.get_logger().debug('New Goal pose: %.2f, %.2f' % (msg.position.x, msg.position.y))
+        self.goal_pose = msg
+    
+    def get_pose(self):
+        '''
+        # Read a command
+        # command = 'p'
+        # Send the command to the server
+        # self.sock.sendall(bytes(command, 'utf-8'))
+
+        # data = self.sock.recv(1024).decode('utf-8')
+        # value = data.split(',')
+        try:
+            d = float(value[0])
+            self.theta += float(value[1])
+            self.pose.position.x += d * cos(self.theta)
+            self.pose.position.y += d * sin(self.theta)
+            self.pub_pose_.publish(self.pose)
+        except:
+            pass
+        '''
 
     def iterate(self):
         if self.init_pose:
@@ -119,12 +122,12 @@ class KheperaIVDriver(Node):
             cmd_vel = self.position_controller()
             self.get_logger().debug('Pose Vx: %s W: %s' % (str(round(cmd_vel.linear.x,3)), str(round(cmd_vel.angular.z,3))))
             # cmd_vel.angular.z = 0.0
-            command = "d " + str(round(cmd_vel.linear.x,3)) + " " + str(round(cmd_vel.angular.z,3))
+            command = "d " + str(round(cmd_vel.linear.x,4)) + " " + str(round(cmd_vel.angular.z,4))
             self.sock.sendall(bytes(command, 'utf-8'))
 
 
     def position_controller(self):
-        Kp = 10
+        Kp = 15
         Kw = 1
         Vmax = 10
         Wmax = 2.5/2
@@ -136,15 +139,24 @@ class KheperaIVDriver(Node):
         error_y = -(self.goal_pose.position.x-self.pose.position.x)*sin(self.theta)+(self.goal_pose.position.y-self.pose.position.y)*cos(self.theta)
 
         alfa = atan2(self.goal_pose.position.y-self.pose.position.y,self.goal_pose.position.x-self.pose.position.x)
+        [roll, pitch, self.theta] = euler_from_quaternion([self.pose.orientation.x, self.pose.orientation.y, self.pose.orientation.z, self.pose.orientation.w])
         oc = alfa - self.theta
-        w = Kw * oc # sin(oc)
-        
-        self.get_logger().debug('alfa: %.2f theta: %.2f oc: %.2f e_x: %.3f e_y: %.3f' % (alfa, self.theta, oc, error_x, error_y))
+        w = Kw * sin(oc)
+
         v = error_x * Kp
 
-        if abs(d)<0.01:
+        if v > 0:
+            v = v + 0.2
+        if v < 0:
+            v = v - 0.2
+
+        if abs(d)<0.001:
             v = 0.0
             w = 0.0
+        else:
+            self.get_logger().debug('alfa: %.2f theta: %.2f oc: %.2f e_x: %.3f e_y: %.3f' % (alfa, self.theta, oc, error_x, error_y))
+
+        
         ## Cmd_Vel
         out = Twist()
         out.linear.x = v

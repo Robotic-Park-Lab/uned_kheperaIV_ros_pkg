@@ -36,14 +36,15 @@ def generate_launch_description():
         namespace='khepera01',
         remappings=[
             ('/khepera01/khepera02/local_pose', '/khepera02/local_pose'),
+            ('/khepera01/khepera03/local_pose', '/khepera03/local_pose'),
             ('/khepera01/turtlebot01/local_pose', '/turtlebot01/local_pose'),
             ('/khepera01/swarm/status', '/swarm/status'),
             ('/khepera01/swarm/order', '/swarm/order')],
         parameters=[
             {"config_file": 'path'},
             {"robot": 'khepera01'},
-            {"agents": 'khepera02'},
-            {"distance": '0.6'},
+            {"agents": 'khepera02, khepera03'},
+            {"distance": '0.6, 0.6'},
         ]
     )
 
@@ -70,14 +71,49 @@ def generate_launch_description():
         namespace='khepera02',
         remappings=[
             ('/khepera02/khepera01/local_pose', '/khepera01/local_pose'),
+            ('/khepera02/khepera03/local_pose', '/khepera03/local_pose'),
             ('/khepera02/turtlebot01/local_pose', '/turtlebot01/local_pose'),
             ('/khepera02/swarm/status', '/swarm/status'),
             ('/khepera02/swarm/order', '/swarm/order')],
         parameters=[
             {"config_file": 'path'},
             {"robot": 'khepera02'},
-            {"agents": 'khepera01'},
-            {"distance": '0.6'},
+            {"agents": 'khepera01, khepera03'},
+            {"distance": '0.6, 0.6'},
+        ]
+    )
+
+    robot03_node = Node(
+        package='uned_kheperaiv_driver',
+        executable='kheperaIV_client_driver',
+        name='driver',
+        namespace='khepera03',
+        output='screen',
+        shell=True,
+        emulate_tty=True,
+        parameters=[
+            {'agent_ip': '192.168.0.19'},
+            {'port_number': 50000},
+            {'id': 'khepera03'},
+            {'config': config_path}
+        ])
+
+    robot03_task = Node(
+        package='uned_kheperaiv_task',
+        executable='distance_based_formation_control',
+        output='screen',
+        name='formation_control',
+        namespace='khepera03',
+        remappings=[
+            ('/khepera03/khepera02/local_pose', '/khepera02/local_pose'),
+            ('/khepera03/khepera01/local_pose', '/khepera01/local_pose'),
+            ('/khepera03/swarm/status', '/swarm/status'),
+            ('/khepera03/swarm/order', '/swarm/order')],
+        parameters=[
+            {"config_file": 'path'},
+            {"robot": 'khepera03'},
+            {"agents": 'khepera02, khepera01'},
+            {"distance": '0.6, 0.6'},
         ]
     )
     
@@ -109,6 +145,8 @@ def generate_launch_description():
         robot01_task,
         robot02_node,
         robot02_task,
+        robot03_node,
+        robot03_task,
         rqt_node,
         rviz_node,
         vicon_node
