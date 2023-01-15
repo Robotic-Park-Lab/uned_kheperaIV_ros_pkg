@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -8,6 +7,7 @@
 #include <netinet/in.h>
 #include <khepera/khepera.h>
 #include <signal.h>
+#include <math.h>
 
 //#define DEBUG 1
 #define PORT_NUMBER 50000
@@ -74,10 +74,15 @@ int main(int argc, char *argv[]) {
   int out=0,speed=DEFAULT_SPEED,vsl,vsr,anymove=0;
   int vel[2], vel_l, vel_r;
   float v, w0;
+  float xg, yg;
+  char init_c = 'n';
 	struct timeval startt,endt;
   float w = 0.f;
   float d = 0.f;
+  float xp = 0.f;
+  float yp = 0.f;
   float theta = 0.f;
+  float alfa = 0.f;
 
   /* Set the libkhepera debug level - Highly recommended for development. */
   // kb_set_debug_level(2);
@@ -168,13 +173,33 @@ int main(int argc, char *argv[]) {
   // Ready visual signal
   kh4_ResetEncoders(dsPic);
   kh4_SetMode(kh4RegSpeed,dsPic );
-  kh4_SetRGBLeds(0,255,0,0,255,0,0,0,255, dsPic);
+  kh4_SetRGBLeds(0,0,255,0,0,255,0,0,255, dsPic);
 
   printf("Connected to ROS2 Client\r\n");
 
   // Main loop
   while (quitReq==0){
 
+    kh4_get_position(&pl,&pr,dsPic);
+    kh4_ResetEncoders(dsPic);
+    d = (pr + pl)*KH4_PULSE_TO_MM/2000;
+    w = (pr - pl)*KH4_PULSE_TO_MM/105;
+    xp = xp + d*cos(theta);
+    yp = yp + d*sin(theta);
+    theta = theta + w;
+    printf("Xp: %.3f  Yp %.3f\n", xp, yp);
+    if(init_c == 'y'){
+      v = ((xg-xp)*cos(theta) + (yg-yp)*sin(theta))*10;
+      if(v<0.02 && v>-0.02){
+        v = 0.0;
+      }
+      alfa = atan2(yg-yp, xg-xp);
+      w0 = 1 * sin(alfa-theta);
+      printf("onboard cmd: %.3f %.3f \n", v, w0);
+      vel_r = (int)((v+w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
+      vel_l = (int)((v-w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
+      kh4_set_speed(vel_l, vel_r,dsPic );
+    }
     // Clear the buffer
     memset(buffer, 0, 256);
 
@@ -188,10 +213,19 @@ int main(int argc, char *argv[]) {
     // Check the command received from the client
     if (buffer[0]=='d'){
       sscanf(buffer,"%*c %f %f",&v,&w0);
-      printf("cmd: %.3f %.3f \n", &v, &w0);
+      printf("cmd: %.3f %.3f \n", v, w0);
       vel_r = (int)((v+w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
       vel_l = (int)((v-w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
-      kh4_set_speed(vel_l, vel_r,dsPic );
+      // kh4_set_speed(vel_l, vel_r,dsPic );
+    }
+    if (buffer[0]=='g'){
+      sscanf(buffer,"%*c %f %f",&xg,&yg);
+      init_c = 'y';
+      printf("Goal Pose: %.3f %.3f \n", xg, yg);
+    }
+    if (buffer[0]=='i'){
+      sscanf(buffer,"%*c %f %f",&xp,&yp);
+      printf("Pose: %.3f %.3f \n", xp, yp);
     }
     else if (strcmp(buffer, "stop") == 0){
       printf("Stop move\n");
@@ -199,16 +233,16 @@ int main(int argc, char *argv[]) {
     }
     else if (buffer[0]=='p'){
       // sscanf(buffer,"%*c %f %f",&xp,&yp);
-      kh4_get_position(&pl,&pr,dsPic);
-      kh4_ResetEncoders(dsPic);
-      d = (pr + pl)*KH4_PULSE_TO_MM/2000;
-      w = (pr - pl)*KH4_PULSE_TO_MM/105;
+      // kh4_get_position(&pl,&pr,dsPic);
+      // kh4_ResetEncoders(dsPic);
+      // d = (pr + pl)*KH4_PULSE_TO_MM/2000;
+      // w = (pr - pl)*KH4_PULSE_TO_MM/105;
       //theta =+ w;
       //xp =+ d; // *cos(theta);
       // yp =+ d; // *sin(theta);
       // Send the data string to the client
       char data_str[256];
-      sprintf(data_str, "%.4f,%.4f", d,w);
+      sprintf(data_str, "%.4f,%.4f", d,theta);
       write(newsockfd, data_str, strlen(data_str));
       //printf("cmd: %.6f %.6f \n", &d, &w);
       
@@ -241,6 +275,7 @@ int main(int argc, char *argv[]) {
       // Send the data string to the client
       write(newsockfd, data_str, strlen(data_str));
     }
+    
   }
   kh4_set_speed(0 ,0 ,dsPic); // stop robot
   kh4_SetMode( kh4RegIdle,dsPic ); // set motors to idle

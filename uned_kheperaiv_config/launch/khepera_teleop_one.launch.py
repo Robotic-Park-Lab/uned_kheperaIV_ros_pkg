@@ -9,10 +9,28 @@ def generate_launch_description():
     config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_teleop_default.yaml')
     rviz_config_path = os.path.join(config_package_dir, 'rviz', 'test.rviz')
 
+    swarm_config_package_dir = get_package_share_directory('uned_swarm_config')
+    swarm_config_path = os.path.join(swarm_config_package_dir, 'resources', 'AA00_distance_formation_configuration.yaml')
+    
+    swarm_node = Node(
+        package='uned_crazyflie_driver',
+        executable='swarm_driver',
+        name='swarm',
+        output='screen',
+        shell=True,
+        emulate_tty=True,
+        parameters=[
+            {'first_uri': 'radio://0/80/2M/E7E7E7E705'},
+            {'n': 1},
+            {'config': swarm_config_path}
+        ]
+    )
+
     robot_node = Node(
         package='uned_kheperaiv_driver',
         executable='kheperaIV_client_driver',
-        name='khepera01',
+        name='driver',
+        namespace='khepera01',
         output='screen',
         shell=True,
         emulate_tty=True,
@@ -38,6 +56,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        swarm_node,
         robot_node,
         rqt_node,
         rviz_node

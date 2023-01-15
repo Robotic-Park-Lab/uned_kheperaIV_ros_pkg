@@ -1,5 +1,6 @@
 import rclpy
 import socket
+import numpy as np
 
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -21,21 +22,23 @@ class KheperaIVDriver(Node):
         self.publisher_status = self.create_publisher(String,'status', 10)
         self.pub_pose_ = self.create_publisher(Pose,'local_pose', 10)
         # Subscription
-        self.create_subscription(Pose, 'pose', self.pose_callback, 1)
+        self.create_subscription(Pose, 'local_pose', self.pose_callback, 1)
         self.create_subscription(Pose, 'goal_pose', self.goalpose_callback, 10)
         self.create_subscription(String, 'cmd', self.cmd_callback, 1)
         self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 1)
 
         self.initialize()
 
-        # self.timer_task = self.create_timer(0.5, self.get_pose)
-        self.timer_iterate = self.create_timer(0.01, self.iterate)
+        self.timer_task = self.create_timer(0.5, self.get_pose)
+        self.timer_iterate = self.create_timer(2.5, self.iterate)
 
     def initialize(self):
         self.get_logger().info('KheperaIVDriver::inicialize() ok.')
         self.tfbr = TransformBroadcaster(self)
         self.init_pose = False
+        self.first_goal_pose = False
         self.pose = Pose()
+        self.last_pose = Pose()
         self.pose.position.x = 0.0
         self.pose.position.y = 0.0
         self.theta = 0.0
@@ -50,8 +53,8 @@ class KheperaIVDriver(Node):
         # Set the server address structure
         server_address = (robot_ip, robot_port)
 
-        self.get_logger().info('KheperaIVDriver::test() IP %s.' % robot_ip)
-        self.get_logger().info('KheperaIVDriver::test() Port %s.' % robot_port)
+        self.get_logger().info('KheperaIVDriver::IP %s.' % robot_ip)
+        self.get_logger().info('KheperaIVDriver::Port %s.' % robot_port)
         # Connect to the server
         self.sock.connect(server_address)
 
@@ -67,14 +70,17 @@ class KheperaIVDriver(Node):
             self.get_logger().info('Khepera IV Driver: sensors: %s' % data)
 
     def cmd_vel_callback(self, msg):
-        vel = msg.linear.x * 100
-        w = msg.angular.z * 100
         command = "d " + str(round(msg.linear.x,3)) + " " + str(round(msg.angular.z,3))
         self.sock.sendall(bytes(command, 'utf-8'))
 
     def pose_callback(self, msg):
+        self.last_pose = self.pose
         self.pose = msg
-        self.pub_pose_.publish(self.pose)
+        self.pose.orientation.x = 0.0
+        self.pose.orientation.y = 0.0
+        self.pose.orientation.z = np.sin(self.theta/2)
+        self.pose.orientation.w = np.cos(self.theta/2)
+        # self.pub_pose_.publish(self.pose)
         t_base = TransformStamped()
         t_base.header.stamp = self.get_clock().now().to_msg()
         t_base.header.frame_id = 'map'
@@ -92,42 +98,49 @@ class KheperaIVDriver(Node):
         if not self.init_pose:
             self.init_pose = True
             self.goal_pose = self.pose
+            command = "i " + str(round(msg.position.x,3)) + " " + str(round(msg.position.y,3))
+            self.sock.sendall(bytes(command, 'utf-8'))
 
     def goalpose_callback(self, msg):
-        self.get_logger().debug('New Goal pose: %.2f, %.2f' % (msg.position.x, msg.position.y))
+        if not self.first_goal_pose:
+            self.first_goal_pose = True
+        self.get_logger().warn('New Goal pose: %.2f, %.2f' % (msg.position.x, msg.position.y))
+        command = "g " + str(round(msg.position.x,3)) + " " + str(round(msg.position.y,3))
+        self.sock.sendall(bytes(command, 'utf-8'))
         self.goal_pose = msg
     
     def get_pose(self):
-        '''
         # Read a command
-        # command = 'p'
+        command = 'p'
         # Send the command to the server
-        # self.sock.sendall(bytes(command, 'utf-8'))
+        self.sock.sendall(bytes(command, 'utf-8'))
 
-        # data = self.sock.recv(1024).decode('utf-8')
-        # value = data.split(',')
+        data = self.sock.recv(1024).decode('utf-8')
+        value = data.split(',')
         try:
-            d = float(value[0])
-            self.theta += float(value[1])
-            self.pose.position.x += d * cos(self.theta)
-            self.pose.position.y += d * sin(self.theta)
-            self.pub_pose_.publish(self.pose)
+            # d = float(value[0])
+            
+            self.theta = float(value[1])
+            # self.get_logger().info('Theta Robot: %.3f' % self.theta)
+            # self.pose.position.x += d * cos(self.theta)
+            # self.pose.position.y += d * sin(self.theta)
+            # self.pub_pose_.publish(self.pose)
         except:
             pass
-        '''
 
     def iterate(self):
-        if self.init_pose:
+        command = "i " + str(round(self.pose.position.x,3)) + " " + str(round(self.pose.position.y,3))
+        self.sock.sendall(bytes(command, 'utf-8'))
+        if self.init_pose and self.first_goal_pose and False:
             cmd_vel = Twist()
             cmd_vel = self.position_controller()
-            self.get_logger().debug('Pose Vx: %s W: %s' % (str(round(cmd_vel.linear.x,3)), str(round(cmd_vel.angular.z,3))))
-            # cmd_vel.angular.z = 0.0
+            self.get_logger().debug('CMD Vx: %.3f W: %.3f' % (cmd_vel.linear.x, cmd_vel.angular.z))
             command = "d " + str(round(cmd_vel.linear.x,4)) + " " + str(round(cmd_vel.angular.z,4))
-            self.sock.sendall(bytes(command, 'utf-8'))
+            # self.sock.sendall(bytes(command, 'utf-8'))
 
 
     def position_controller(self):
-        Kp = 15
+        Kp = 10
         Kw = 1
         Vmax = 10
         Wmax = 2.5/2
@@ -139,22 +152,22 @@ class KheperaIVDriver(Node):
         error_y = -(self.goal_pose.position.x-self.pose.position.x)*sin(self.theta)+(self.goal_pose.position.y-self.pose.position.y)*cos(self.theta)
 
         alfa = atan2(self.goal_pose.position.y-self.pose.position.y,self.goal_pose.position.x-self.pose.position.x)
-        [roll, pitch, self.theta] = euler_from_quaternion([self.pose.orientation.x, self.pose.orientation.y, self.pose.orientation.z, self.pose.orientation.w])
+        # [roll, pitch, self.theta] = euler_from_quaternion([self.pose.orientation.x, self.pose.orientation.y, self.pose.orientation.z, self.pose.orientation.w])
         oc = alfa - self.theta
         w = Kw * sin(oc)
-
+        w = 0.0
         v = error_x * Kp
-
+        '''
         if v > 0:
             v = v + 0.2
         if v < 0:
             v = v - 0.2
-
+        '''
         if abs(d)<0.001:
             v = 0.0
             w = 0.0
         else:
-            self.get_logger().debug('alfa: %.2f theta: %.2f oc: %.2f e_x: %.3f e_y: %.3f' % (alfa, self.theta, oc, error_x, error_y))
+            self.get_logger().info('alfa: %.2f theta: %.2f oc: %.2f e_x: %.3f e_y: %.3f' % (alfa, self.theta, oc, error_x, error_y))
 
         
         ## Cmd_Vel
