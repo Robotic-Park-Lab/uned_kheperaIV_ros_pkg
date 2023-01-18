@@ -18,7 +18,9 @@ class Agent():
         self.publisher_marker = self.parent.create_publisher(Marker, self.id + '/marker', 10)
 
     def gtpose_callback(self, msg):
-        self.pose = msg
+        if abs(msg.position.x)<1.15 and abs(msg.position.y)<1.15:
+            self.pose = msg
+            self.parent.distance_formation_bool = True
 
         line = Marker()
         p0 = Point()
@@ -74,7 +76,7 @@ class KheperaIVDriver(Node):
         self.pub_goalpose_ = self.create_publisher(Pose, 'goal_pose', 10)
 
         self.initialize()
-        self.timer = self.create_timer(0.02, self.task_manager)
+        self.timer = self.create_timer(0.1, self.task_manager)
         
     def initialize(self):
         self.get_logger().info('Formation Control::inicialize() ok.')
@@ -92,6 +94,7 @@ class KheperaIVDriver(Node):
 
         self.groundtruth = Pose()
         self.distance_formation_bool = False
+        self.formation_bool = False
         self.leader = False
         self.centroid_leader = False
         self.leader_cmd = Pose()
@@ -111,12 +114,11 @@ class KheperaIVDriver(Node):
     def order_callback(self, msg):
         self.get_logger().info('Order: "%s"' % msg.data)
         if msg.data == 'distance_formation_run':
-            self.distance_formation_bool = True
-            self.get_logger().info('Test1')
+            self.formation_bool = True
         elif msg.data == 'formation_stop':
-            self.distance_formation_bool = False
+            self.formation_bool = False
         elif msg.data == 'Ready':
-            self.distance_formation_bool = True
+            self.formation_bool = True
         else:
             self.get_logger().error('"%s": Unknown order' % (msg.data))
 
@@ -127,22 +129,19 @@ class KheperaIVDriver(Node):
         self.leader_cmd = msg
 
     def task_manager(self):
-        if self.distance_formation_bool:
+        if self.formation_bool: # and self.distance_formation_bool:
             msg = Pose()
-            msg.position.x = self.groundtruth.position.x
-            msg.position.y = self.groundtruth.position.y
+            dx = dy = 0
             for robot in agent_list:
                 error_x = self.groundtruth.position.x - robot.pose.position.x
                 error_y = self.groundtruth.position.y - robot.pose.position.y
                 error_z = self.groundtruth.position.z - robot.pose.position.z
                 distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
-                msg.position.x += (1/4) * (pow(robot.distance,2) - distance) * error_x
-                msg.position.y += (1/4) * (pow(robot.distance,2) - distance) * error_y
+                dx += (1/4) * (pow(robot.distance,2) - distance) * error_x
+                dy += (1/4) * (pow(robot.distance,2) - distance) * error_y
                 
                 msg_data = Float64()
                 msg_data.data = robot.distance - sqrt(distance)
-                if self.id == 'khepera01':
-                    self.get_logger().debug('Agent %s: eX: %.3f eY: %.3f error: %.3f' % (robot.id, msg.position.x, msg.position.y, msg_data.data))
                 robot.publisher_data_.publish(msg_data)
 
             if self.leader:
@@ -155,9 +154,11 @@ class KheperaIVDriver(Node):
                 msg.position.y += self.leader_cmd.position.y
                 msg.position.z += self.leader_cmd.position.z
 
+            msg.position.x = self.groundtruth.position.x + dx/4
+            msg.position.y = self.groundtruth.position.y + dy/4
+
             self.pub_goalpose_.publish(msg)
-            if self.id == 'khepera01':
-                self.get_logger().debug('CMD-> X: %.3f Y: %.3f \tPose-> X: %.3f Y: %.3f' % (msg.position.x, msg.position.y, self.groundtruth.position.x, self.groundtruth.position.y))
+            self.distance_formation_bool = False
 
 def main(args=None):
     rclpy.init(args=args)

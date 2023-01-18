@@ -13,6 +13,23 @@ def generate_launch_description():
     buffer_size = 200
     topic_namespace = 'vicon'
 
+    swarm_config_package_dir = get_package_share_directory('uned_swarm_config')
+    swarm_config_path = os.path.join(swarm_config_package_dir, 'resources', 'AA00_distance_formation_configuration.yaml')
+    
+    swarm_node = Node(
+        package='uned_crazyflie_driver',
+        executable='swarm_driver',
+        name='swarm',
+        output='screen',
+        shell=True,
+        emulate_tty=True,
+        parameters=[
+            {'first_uri': 'radio://0/80/2M/E7E7E7E705'},
+            {'n': 4},
+            {'config': swarm_config_path}
+        ]
+    )
+
     robot01_node = Node(
         package='uned_kheperaiv_driver',
         executable='kheperaIV_client_driver',
@@ -21,10 +38,14 @@ def generate_launch_description():
         output='screen',
         shell=True,
         emulate_tty=True,
+        remappings=[
+            ('/khepera01/swarm/status', '/swarm/status'),
+            ('/khepera01/swarm/order', '/swarm/order')],
         parameters=[
             {'agent_ip': '192.168.0.21'},
             {'port_number': 50000},
             {'id': 'khepera01'},
+            {'init_theta': 1.5707},
             {'config': config_path}
         ])
 
@@ -57,10 +78,14 @@ def generate_launch_description():
         output='screen',
         shell=True,
         emulate_tty=True,
+        remappings=[
+            ('/khepera02/swarm/status', '/swarm/status'),
+            ('/khepera02/swarm/order', '/swarm/order')],
         parameters=[
             {'agent_ip': '192.168.0.22'},
             {'port_number': 50000},
             {'id': 'khepera02'},
+            {'init_theta': -1.5707},
             {'config': config_path}
         ])
 
@@ -93,10 +118,14 @@ def generate_launch_description():
         output='screen',
         shell=True,
         emulate_tty=True,
+        remappings=[
+            ('/khepera03/swarm/status', '/swarm/status'),
+            ('/khepera03/swarm/order', '/swarm/order')],
         parameters=[
             {'agent_ip': '192.168.0.19'},
             {'port_number': 50000},
             {'id': 'khepera03'},
+            {'init_theta': -1.5707},
             {'config': config_path}
         ])
 
@@ -129,10 +158,14 @@ def generate_launch_description():
         output='screen',
         shell=True,
         emulate_tty=True,
+        remappings=[
+            ('/khepera04/swarm/status', '/swarm/status'),
+            ('/khepera04/swarm/order', '/swarm/order')],
         parameters=[
             {'agent_ip': '192.168.0.20'},
             {'port_number': 50000},
             {'id': 'khepera04'},
+            {'init_theta': 1.5707},
             {'config': config_path}
         ])
 
@@ -178,9 +211,11 @@ def generate_launch_description():
         name='vicon_node',
         parameters=[
             {'hostname': hostname, 'buffer_size': buffer_size, 'namespace': topic_namespace}
-        ])
+        ]
+    )
 
     return LaunchDescription([
+        # swarm_node,
         robot01_node,
         robot01_task,
         robot02_node,
