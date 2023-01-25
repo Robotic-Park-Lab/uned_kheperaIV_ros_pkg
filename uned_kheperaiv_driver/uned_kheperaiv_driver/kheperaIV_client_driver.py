@@ -33,7 +33,7 @@ class KheperaIVDriver(Node):
         self.initialize()
 
         self.timer_task = self.create_timer(0.5, self.get_pose)
-        self.timer_iterate = self.create_timer(0.5, self.iterate)
+        self.timer_iterate = self.create_timer(1.0, self.iterate)
 
     def initialize(self):
         self.get_logger().info('KheperaIVDriver::inicialize() ok.')
@@ -103,12 +103,12 @@ class KheperaIVDriver(Node):
                     self.pose = msg
                     self.pose.position.z = 0.00
                     [roll, pitch, theta_vicon] = euler_from_quaternion([self.pose.orientation.x, self.pose.orientation.y, self.pose.orientation.z, self.pose.orientation.w])
-                    if ((theta_vicon-self.theta_vicon) < 0.5) or abs(theta_vicon-self.theta_vicon)>3.1:
-                        self.theta_vicon = theta_vicon
+                    # if ((theta_vicon-self.theta) < 0.3) or abs(theta_vicon-self.theta)>4.6:
+                    #     self.theta = theta_vicon
                     self.pose.orientation.x = 0.0
                     self.pose.orientation.y = 0.0
-                    self.pose.orientation.z = np.sin(self.theta_vicon/2)
-                    self.pose.orientation.w = np.cos(self.theta_vicon/2)
+                    self.pose.orientation.z = np.sin(self.theta /2)
+                    self.pose.orientation.w = np.cos(self.theta /2)
                     
                     self.pub_pose_.publish(self.pose)
                     t_base = TransformStamped()
@@ -124,7 +124,7 @@ class KheperaIVDriver(Node):
                     t_base.transform.rotation.w = self.pose.orientation.w
                     self.tfbr.sendTransform(t_base)
                     
-                    self.get_logger().debug('Pose X: %.3f Y: %.3f Yaw: %.3f theta_vicon %.3f' % (self.pose.position.x, self.pose.position.y, self.theta, self.theta_vicon))
+                    self.get_logger().info('Pose X: %.3f Y: %.3f Yaw: %.3f theta_vicon %.3f' % (self.pose.position.x, self.pose.position.y, self.theta, self.theta_vicon))
 
     def goalpose_callback(self, msg):
         if not self.first_goal_pose:
@@ -145,7 +145,7 @@ class KheperaIVDriver(Node):
         try:
             # d = float(value[0])
             if self.init_pose:
-                self.theta =+ float(value[1])
+                self.theta = float(value[1])
             # self.get_logger().info('Theta Robot: %.3f' % self.theta)
             # self.pose.position.x += d * cos(self.theta)
             # self.pose.position.y += d * sin(self.theta)
@@ -154,7 +154,7 @@ class KheperaIVDriver(Node):
             pass
 
     def iterate(self):
-        command = "i " + str(round(self.pose.position.x,3)) + " " + str(round(self.pose.position.y,3))+ " " + str(round(self.theta_vicon,3))
+        command = "i " + str(round(self.pose.position.x,3)) + " " + str(round(self.pose.position.y,3))+ " " + str(round(self.theta ,3))
         self.sock.sendall(bytes(command, 'utf-8'))
         if self.init_pose and self.first_goal_pose and False:
             cmd_vel = Twist()
