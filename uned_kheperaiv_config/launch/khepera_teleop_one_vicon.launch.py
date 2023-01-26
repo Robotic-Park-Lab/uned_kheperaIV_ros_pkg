@@ -9,21 +9,11 @@ def generate_launch_description():
     config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_teleop_default.yaml')
     rviz_config_path = os.path.join(config_package_dir, 'rviz', 'test.rviz')
 
-    swarm_node = Node(
-        package='uned_crazyflie_driver',
-        executable='swarm_driver',
-        name='swarm',
-        output='screen',
-        shell=True,
-        emulate_tty=True,
-        parameters=[
-            {'first_uri': 'radio://0/80/2M/E7E7E7E705'},
-            {'n': 2},
-            {'config': config_path}
-        ]
-    )
+    hostname = '10.196.92.136'
+    buffer_size = 200
+    topic_namespace = 'vicon'
 
-    robot01_node = Node(
+    robot_node = Node(
         package='uned_kheperaiv_driver',
         executable='kheperaIV_client_driver',
         name='driver',
@@ -35,20 +25,6 @@ def generate_launch_description():
             {'id': 'khepera01'},
             {'config': config_path}
         ])
-
-    robot02_node = Node(
-        package='uned_kheperaiv_driver',
-        executable='kheperaIV_client_driver',
-        namespace='khepera02',
-        name='driver',
-        output='screen',
-        shell=True,
-        emulate_tty=True,
-        parameters=[
-            {'id': 'khepera02'},
-            {'config': config_path}
-        ])
-    
     rqt_node = Node(
         package='rqt_gui',
         executable='rqt_gui',
@@ -64,10 +40,18 @@ def generate_launch_description():
 
     )
 
+    vicon_node = Node(
+        package='vicon_receiver',
+        executable='vicon_client',
+        name='vicon_node',
+        parameters=[
+            {'hostname': hostname, 'buffer_size': buffer_size, 'namespace': topic_namespace}
+        ]
+    )
+
     return LaunchDescription([
-        robot01_node,
-        robot02_node,
+        vicon_node,
+        robot_node,
         rqt_node,
-        rviz_node,
-        swarm_node
+        rviz_node
     ])

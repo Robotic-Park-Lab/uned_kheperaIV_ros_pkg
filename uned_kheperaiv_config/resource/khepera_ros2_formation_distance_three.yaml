@@ -1,14 +1,14 @@
-# Default Khepera IV parameters to ros2 node
+# Default crazyflie parameters to ros2 node
 khepera01:
   id: khepera01
   agent_ip: '192.168.0.21'
   port_number: 50000
-  init_theta: 0.0
+  init_theta: -1.5707
   task: 
-    enable: False
-    role: Null
-    type: Null
-    relationship: Null
+    enable: True
+    role: consensus
+    type: distance
+    relationship: 'khepera02_0.6, khepera03_0.6'
 
 dron05:
   name: khepera01
@@ -43,12 +43,12 @@ khepera02:
   id: khepera02
   agent_ip: '192.168.0.22'
   port_number: 50000
-  init_theta: 0.0
+  init_theta: -1.5707
   task: 
-    enable: False
-    role: Null
-    type: Null
-    relationship: Null
+    enable: True
+    role: consensus
+    type: distance
+    relationship: 'khepera01_0.6, khepera03_0.6'
 
 dron06:
   name: khepera02
@@ -83,55 +83,15 @@ khepera03:
   id: khepera03
   agent_ip: '192.168.0.19'
   port_number: 50000
-  init_theta: 0.0
+  init_theta: -1.5707
   task: 
-    enable: False
-    role: Null
-    type: Null
-    relationship: Null
+    enable: True
+    role: consensus
+    type: distance
+    relationship: 'khepera01_0.6, khepera02_0.6'
 
 dron07:
   name: khepera03
-  control_mode: None
-  controller_type: Continuous
-  communication: Continuous
-  local_pose:
-    enable: True
-    T: 20
-  local_twist:
-    enable: False
-    T: 20
-  data_attitude:
-    enable: False
-    T: 20
-  data_rate: 
-    enable: False
-    T: 20
-  data_motor: 
-    enable: False
-    T: 20
-  data:
-    enable: False
-    T: 20
-  task: 
-    enable: False
-    role: Null
-    type: Null
-    relationship: Null
-
-khepera04:
-  id: khepera04
-  agent_ip: '192.168.0.20'
-  port_number: 50000
-  init_theta: 0.0
-  task: 
-    enable: False
-    role: Null
-    type: Null
-    relationship: Null
-
-dron08:
-  name: khepera04
   control_mode: None
   controller_type: Continuous
   communication: Continuous

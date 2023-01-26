@@ -4,6 +4,7 @@ from rclpy.node import Node
 from std_msgs.msg import String, Float64
 from geometry_msgs.msg import Pose, Point
 from visualization_msgs.msg import Marker
+import yaml
 
 agent_list = list()
 
@@ -13,7 +14,7 @@ class Agent():
         self.distance = distance
         self.pose = Pose()
         self.parent = parent
-        self.sub_pose = self.parent.create_subscription(Pose, self.id + '/local_pose', self.gtpose_callback, 10)
+        self.sub_pose = self.parent.create_subscription(Pose, '/' + self.id + '/local_pose', self.gtpose_callback, 10)
         self.publisher_data_ = self.parent.create_publisher(Float64, self.id + '/data', 10)
         self.publisher_marker = self.parent.create_publisher(Marker, self.id + '/marker', 10)
 
@@ -61,17 +62,17 @@ class KheperaIVDriver(Node):
     def __init__(self):
         super().__init__('formation_control')
         # Params
-        self.declare_parameter('config_file', 'path')
+        self.declare_parameter('config_file', 'file_path.yaml')
         self.declare_parameter('agents', 'khepera01')
         self.declare_parameter('distance', '0.2')
         self.declare_parameter('robot', 'khepera01')
 
         # Subscription
         self.gt_pose_ = self.create_subscription(Pose, 'local_pose', self.gtpose_callback, 10)
-        self.sub_status_ = self.create_subscription(String, 'swarm/status', self.order_callback, 10)
-        self.sub_order_ = self.create_subscription(String, 'swarm/order', self.order_callback, 1)
+        self.sub_status_ = self.create_subscription(String, '/swarm/status', self.order_callback, 10)
+        self.sub_order_ = self.create_subscription(String, '/swarm/order', self.order_callback, 1)
         self.sub_targetpose_ = self.create_subscription(Pose, 'target_pose', self.targetpose_callback, 10)
-        self.sub_swarmgoalpose_ = self.create_subscription(Pose, 'swarm/goal_pose', self.swarm_goalpose_callback, 1)
+        self.sub_swarmgoalpose_ = self.create_subscription(Pose, '/swarm/goal_pose', self.swarm_goalpose_callback, 1)
         # Publisher
         self.pub_goalpose_ = self.create_publisher(Pose, 'goal_pose', 10)
 
@@ -81,16 +82,23 @@ class KheperaIVDriver(Node):
     def initialize(self):
         self.get_logger().info('Formation Control::inicialize() ok.')
         # Read Params
-        self.yaml_file = self.get_parameter('config_file').get_parameter_value().string_value
+        config_file = self.get_parameter('config_file').get_parameter_value().string_value
         self.id = self.get_parameter('robot').get_parameter_value().string_value
-        aux = self.get_parameter('agents').get_parameter_value().string_value
-        id_array =  aux.split(', ')
-        aux = self.get_parameter('distance').get_parameter_value().string_value
-        distance_array = aux.split(', ')
-        for i in range(int(len(id_array)),0,-1):
-            agent_str = id_array[i-1]
-            robot = Agent(self, float(distance_array[i-1]), agent_str)
-            agent_list.append(robot)
+        
+        with open(config_file, 'r') as file:
+            documents = yaml.safe_load(file)
+
+        self.config = documents[self.id]
+
+        if self.config['task']['enable']:
+            self.agent_list = list()
+            aux = self.config['task']['relationship']
+            self.relationship = aux.split(', ')
+            if self.config['task']['type'] == 'distance':
+                for rel in self.relationship:
+                    aux = rel.split('_')
+                    robot = Agent(self, float(aux[1]), aux[0])
+                    agent_list.append(robot)
 
         self.groundtruth = Pose()
         self.distance_formation_bool = False

@@ -1,6 +1,7 @@
 import rclpy
 import socket
 import numpy as np
+import yaml
 
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -11,14 +12,13 @@ from tf_transformations import euler_from_quaternion
 
 class KheperaIVDriver(Node):
     def __init__(self):
-        super().__init__('khepera_iv_driver')
+        super().__init__('driver')
 
         ## ROS2 Environment
         # Params
-        self.declare_parameter('agent_ip', '192.168.0.21')
-        self.declare_parameter('port_number', 50000)
+        self.declare_parameter('config', 'file_path.yaml')
         self.declare_parameter('id', 'khepera01')
-        self.declare_parameter('init_theta', 0.0)
+
         # Publisher
         self.publisher_status = self.create_publisher(String,'status', 10)
         self.pub_pose_ = self.create_publisher(Pose,'local_pose', 10)
@@ -27,8 +27,8 @@ class KheperaIVDriver(Node):
         self.create_subscription(Pose, 'goal_pose', self.goalpose_callback, 10)
         self.create_subscription(String, 'cmd', self.cmd_callback, 1)
         self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 1)
-        self.create_subscription(String, 'swarm/status', self.order_callback, 10)
-        self.create_subscription(String, 'swarm/order', self.order_callback, 1)
+        self.create_subscription(String, '/swarm/status', self.order_callback, 10)
+        self.create_subscription(String, '/swarm/order', self.order_callback, 1)
 
         self.initialize()
 
@@ -45,10 +45,18 @@ class KheperaIVDriver(Node):
         self.pose.position.x = 0.0
         self.pose.position.y = 0.0
         # Read Params
-        robot_ip = self.get_parameter('agent_ip').get_parameter_value().string_value
-        robot_port = 50000 # self.get_parameter('port_number').get_parameter_value().integer_value
         self.id = self.get_parameter('id').get_parameter_value().string_value
-        self.theta = self.get_parameter('init_theta').get_parameter_value().double_value
+        config_file = self.get_parameter('config').get_parameter_value().string_value
+
+        with open(config_file, 'r') as file:
+            documents = yaml.safe_load(file)
+            
+        config = documents[self.id]
+
+        robot_ip = config['agent_ip']
+        robot_port = config['port_number']
+        
+        self.theta = config['init_theta']
         self.theta_vicon = self.theta
         # Open a socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -100,31 +108,31 @@ class KheperaIVDriver(Node):
                         self.pose = msg
                         self.get_logger().debug('Delta %.3f' % np.linalg.norm(delta))
                         self.get_logger().debug('New Local pose')
-                    self.pose = msg
-                    self.pose.position.z = 0.00
-                    [roll, pitch, theta_vicon] = euler_from_quaternion([self.pose.orientation.x, self.pose.orientation.y, self.pose.orientation.z, self.pose.orientation.w])
-                    # if ((theta_vicon-self.theta) < 0.3) or abs(theta_vicon-self.theta)>4.6:
-                    #     self.theta = theta_vicon
-                    self.pose.orientation.x = 0.0
-                    self.pose.orientation.y = 0.0
-                    self.pose.orientation.z = np.sin(self.theta /2)
-                    self.pose.orientation.w = np.cos(self.theta /2)
-                    
-                    self.pub_pose_.publish(self.pose)
-                    t_base = TransformStamped()
-                    t_base.header.stamp = self.get_clock().now().to_msg()
-                    t_base.header.frame_id = 'map'
-                    t_base.child_frame_id = self.id
-                    t_base.transform.translation.x = self.pose.position.x
-                    t_base.transform.translation.y = self.pose.position.y
-                    t_base.transform.translation.z = self.pose.position.z
-                    t_base.transform.rotation.x = self.pose.orientation.x
-                    t_base.transform.rotation.y = self.pose.orientation.y
-                    t_base.transform.rotation.z = self.pose.orientation.z
-                    t_base.transform.rotation.w = self.pose.orientation.w
-                    self.tfbr.sendTransform(t_base)
-                    
-                    self.get_logger().info('Pose X: %.3f Y: %.3f Yaw: %.3f theta_vicon %.3f' % (self.pose.position.x, self.pose.position.y, self.theta, self.theta_vicon))
+                        self.pose = msg
+                        self.pose.position.z = 0.00
+                        [roll, pitch, theta_vicon] = euler_from_quaternion([self.pose.orientation.x, self.pose.orientation.y, self.pose.orientation.z, self.pose.orientation.w])
+                        # if ((theta_vicon-self.theta) < 0.3) or abs(theta_vicon-self.theta)>4.6:
+                        #     self.theta = theta_vicon
+                        self.pose.orientation.x = 0.0
+                        self.pose.orientation.y = 0.0
+                        self.pose.orientation.z = np.sin(self.theta /2)
+                        self.pose.orientation.w = np.cos(self.theta /2)
+                        
+                        self.pub_pose_.publish(self.pose)
+                        t_base = TransformStamped()
+                        t_base.header.stamp = self.get_clock().now().to_msg()
+                        t_base.header.frame_id = 'map'
+                        t_base.child_frame_id = self.id
+                        t_base.transform.translation.x = self.pose.position.x
+                        t_base.transform.translation.y = self.pose.position.y
+                        t_base.transform.translation.z = self.pose.position.z
+                        t_base.transform.rotation.x = self.pose.orientation.x
+                        t_base.transform.rotation.y = self.pose.orientation.y
+                        t_base.transform.rotation.z = self.pose.orientation.z
+                        t_base.transform.rotation.w = self.pose.orientation.w
+                        self.tfbr.sendTransform(t_base)
+                        
+                        self.get_logger().info('Pose X: %.3f Y: %.3f Yaw: %.3f theta_vicon %.3f' % (self.pose.position.x, self.pose.position.y, self.theta, self.theta_vicon))
 
     def goalpose_callback(self, msg):
         if not self.first_goal_pose:
@@ -156,13 +164,6 @@ class KheperaIVDriver(Node):
     def iterate(self):
         command = "i " + str(round(self.pose.position.x,3)) + " " + str(round(self.pose.position.y,3))+ " " + str(round(self.theta ,3))
         self.sock.sendall(bytes(command, 'utf-8'))
-        if self.init_pose and self.first_goal_pose and False:
-            cmd_vel = Twist()
-            cmd_vel = self.position_controller()
-            self.get_logger().debug('CMD Vx: %.3f W: %.3f' % (cmd_vel.linear.x, cmd_vel.angular.z))
-            command = "d " + str(round(cmd_vel.linear.x,4)) + " " + str(round(cmd_vel.angular.z,4))
-            # self.sock.sendall(bytes(command, 'utf-8'))
-
 
     def position_controller(self):
         Kp = 10
