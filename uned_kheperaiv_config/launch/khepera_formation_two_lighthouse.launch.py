@@ -6,13 +6,22 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     config_package_dir = get_package_share_directory('uned_kheperaiv_config')
-    config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_formation_distance_four_vicon.yaml')
+    config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_formation_distance_two_lighthouse.yaml')
     rviz_config_path = os.path.join(config_package_dir, 'rviz', 'test.rviz')
 
-    hostname = '10.196.92.136'
-    buffer_size = 200
-    topic_namespace = 'vicon'
-
+    swarm_node = Node(
+        package='uned_crazyflie_driver',
+        executable='swarm_driver',
+        name='swarm',
+        output='screen',
+        shell=True,
+        emulate_tty=True,
+        parameters=[
+            {'first_uri': 'radio://0/80/2M/E7E7E7E705'},
+            {'n': 2},
+            {'config': config_path}
+        ]
+    )
     robot01_node = Node(
         package='uned_kheperaiv_driver',
         executable='kheperaIV_client_driver',
@@ -35,6 +44,8 @@ def generate_launch_description():
         parameters=[
             {"config_file": config_path},
             {"robot": 'khepera01'},
+            {"agents": 'khepera02'},
+            {"distance": '0.6'},
         ]
     )
 
@@ -60,56 +71,8 @@ def generate_launch_description():
         parameters=[
             {"config_file": config_path},
             {"robot": 'khepera02'},
-        ]
-    )
-
-    robot03_node = Node(
-        package='uned_kheperaiv_driver',
-        executable='kheperaIV_client_driver',
-        name='driver',
-        namespace='khepera03',
-        output='screen',
-        shell=True,
-        emulate_tty=True,
-        parameters=[
-            {'id': 'khepera03'},
-            {'config': config_path}
-        ])
-
-    robot03_task = Node(
-        package='uned_kheperaiv_task',
-        executable='distance_based_formation_control',
-        output='screen',
-        name='formation_control',
-        namespace='khepera03',
-        parameters=[
-            {"config_file": config_path},
-            {"robot": 'khepera03'},
-        ]
-    )
-
-    robot04_node = Node(
-        package='uned_kheperaiv_driver',
-        executable='kheperaIV_client_driver',
-        name='driver',
-        namespace='khepera04',
-        output='screen',
-        shell=True,
-        emulate_tty=True,
-        parameters=[
-            {'id': 'khepera04'},
-            {'config': config_path}
-        ])
-
-    robot04_task = Node(
-        package='uned_kheperaiv_task',
-        executable='distance_based_formation_control',
-        output='screen',
-        name='formation_control',
-        namespace='khepera04',
-        parameters=[
-            {"config_file": config_path},
-            {"robot": 'khepera04'},
+            {"agents": 'khepera01'},
+            {"distance": '0.6'},
         ]
     )
     
@@ -128,25 +91,12 @@ def generate_launch_description():
 
     )
 
-    vicon_node = Node(
-        package='vicon_receiver',
-        executable='vicon_client',
-        name='vicon_node',
-        parameters=[
-            {'hostname': hostname, 'buffer_size': buffer_size, 'namespace': topic_namespace}
-        ]
-    )
-
     return LaunchDescription([
         robot01_node,
         robot01_task,
         robot02_node,
         robot02_task,
-        robot03_node,
-        robot03_task,
-        robot04_node,
-        robot04_task,
         rqt_node,
         rviz_node,
-        vicon_node
+        swarm_node
     ])

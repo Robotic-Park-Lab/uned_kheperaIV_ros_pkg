@@ -4,6 +4,12 @@ khepera01:
   agent_ip: '192.168.0.21'
   port_number: 50000
   init_theta: 0.0
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
   task: 
     enable: False
     role: Null
@@ -44,6 +50,12 @@ khepera02:
   agent_ip: '192.168.0.22'
   port_number: 50000
   init_theta: 0.0
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
   task: 
     enable: False
     role: Null
@@ -84,6 +96,12 @@ khepera03:
   agent_ip: '192.168.0.19'
   port_number: 50000
   init_theta: 0.0
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
   task: 
     enable: False
     role: Null
@@ -124,6 +142,12 @@ khepera04:
   agent_ip: '192.168.0.20'
   port_number: 50000
   init_theta: 0.0
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
   task: 
     enable: False
     role: Null

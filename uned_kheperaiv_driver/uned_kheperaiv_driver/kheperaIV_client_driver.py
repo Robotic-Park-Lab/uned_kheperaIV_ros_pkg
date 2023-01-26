@@ -58,6 +58,13 @@ class KheperaIVDriver(Node):
         
         self.theta = config['init_theta']
         self.theta_vicon = self.theta
+
+        self.communication = (config['communication']['type'] == 'Continuous')
+        if not self.communication:
+            self.threshold = config['communication']['threshold']['value']
+        else:
+            self.threshold = 0.01
+        
         # Open a socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -102,7 +109,7 @@ class KheperaIVDriver(Node):
                 if not(np.isnan(msg.position.x) or np.isnan(msg.position.y) or np.isnan(msg.position.z) or np.isnan(msg.orientation.x) or np.isnan(msg.orientation.y) or np.isnan(msg.orientation.z)  or np.isnan(msg.orientation.w)) and not (msg.position.x == 0.0 and msg.position.y == 0.0 and msg.position.z == 0.0):
                     delta = np.array([self.pose.position.x-msg.position.x,self.pose.position.y-msg.position.y,self.pose.position.z-msg.position.z])
                     
-                    if (np.linalg.norm(delta)>0.01 and np.linalg.norm(delta)<0.2) or self.init_formation_bool or True:
+                    if (np.linalg.norm(delta)>self.threshold and np.linalg.norm(delta)<0.2) or self.init_formation_bool or self.communication:
                         if self.init_formation_bool:
                             self.init_formation_bool = False
                         self.pose = msg

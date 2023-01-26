@@ -1,9 +1,15 @@
-# Default crazyflie parameters to ros2 node
+# Khepera IV parameters to ros2 node
 khepera01:
   id: khepera01
   agent_ip: '192.168.0.21'
   port_number: 50000
   init_theta: -1.5707
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
   task: 
     enable: True
     role: consensus
@@ -44,6 +50,12 @@ khepera02:
   agent_ip: '192.168.0.22'
   port_number: 50000
   init_theta: -1.5707
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
   task: 
     enable: True
     role: consensus

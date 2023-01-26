@@ -6,7 +6,7 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     config_package_dir = get_package_share_directory('uned_kheperaiv_config')
-    config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_teleop_default.yaml')
+    config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_teleop_lighthouse.yaml')
     rviz_config_path = os.path.join(config_package_dir, 'rviz', 'test.rviz')
 
     swarm_node = Node(
