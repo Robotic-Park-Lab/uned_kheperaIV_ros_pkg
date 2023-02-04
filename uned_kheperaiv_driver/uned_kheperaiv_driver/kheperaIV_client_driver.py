@@ -33,7 +33,7 @@ class KheperaIVDriver(Node):
         self.initialize()
 
         self.timer_task = self.create_timer(0.5, self.get_pose)
-        self.timer_iterate = self.create_timer(1.0, self.iterate)
+        # self.timer_iterate = self.create_timer(1.0, self.iterate)
 
     def initialize(self):
         self.get_logger().info('KheperaIVDriver::inicialize() ok.')
@@ -52,10 +52,12 @@ class KheperaIVDriver(Node):
             documents = yaml.safe_load(file)
             
         config = documents[self.id]
-
-        robot_ip = config['agent_ip']
+        self.get_logger().info('KheperaIVDriver::IP %s.' % config)
         robot_port = config['port_number']
+        self.get_logger().info('KheperaIVDriver::Port %s.' % robot_port)
         
+        robot_ip = config['agent_ip']
+         
         self.theta = config['init_theta']
         self.theta_vicon = self.theta
 
@@ -67,12 +69,13 @@ class KheperaIVDriver(Node):
         
         # Open a socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(2)
 
         # Set the server address structure
         server_address = (robot_ip, robot_port)
 
         self.get_logger().info('KheperaIVDriver::IP %s.' % robot_ip)
-        self.get_logger().info('KheperaIVDriver::Port %s.' % robot_port)
+        
         self.get_logger().info('KheperaIVDriver::Yaw %f.' % self.theta)
         # Connect to the server
         self.sock.connect(server_address)
@@ -93,7 +96,7 @@ class KheperaIVDriver(Node):
         self.sock.sendall(bytes(command, 'utf-8'))
 
     def order_callback(self, msg):
-        self.get_logger().info('KheperaIVDriver::IP')
+        self.get_logger().info('KheperaIVDriver::New Order')
         if msg.data == 'distance_formation_run':
             self.init_formation_bool = True
 
@@ -118,8 +121,8 @@ class KheperaIVDriver(Node):
                         self.pose = msg
                         self.pose.position.z = 0.00
                         [roll, pitch, theta_vicon] = euler_from_quaternion([self.pose.orientation.x, self.pose.orientation.y, self.pose.orientation.z, self.pose.orientation.w])
-                        # if ((theta_vicon-self.theta) < 0.3) or abs(theta_vicon-self.theta)>4.6:
-                        #     self.theta = theta_vicon
+                        if ((theta_vicon-self.theta) < 0.3) or abs(theta_vicon-self.theta)>4.6:
+                            self.theta = theta_vicon
                         self.pose.orientation.x = 0.0
                         self.pose.orientation.y = 0.0
                         self.pose.orientation.z = np.sin(self.theta /2)
@@ -139,12 +142,12 @@ class KheperaIVDriver(Node):
                         t_base.transform.rotation.w = self.pose.orientation.w
                         self.tfbr.sendTransform(t_base)
                         
-                        self.get_logger().info('Pose X: %.3f Y: %.3f Yaw: %.3f theta_vicon %.3f' % (self.pose.position.x, self.pose.position.y, self.theta, self.theta_vicon))
+                        self.get_logger().debug('Pose X: %.3f Y: %.3f Yaw: %.3f theta_vicon %.3f' % (self.pose.position.x, self.pose.position.y, self.theta, self.theta_vicon))
 
     def goalpose_callback(self, msg):
         if not self.first_goal_pose:
             self.first_goal_pose = True
-        self.get_logger().debug('New Goal pose: %.2f, %.2f' % (msg.position.x, msg.position.y))
+        self.get_logger().info('New Goal pose: %.2f, %.2f' % (msg.position.x, msg.position.y))
         command = "g " + str(round(msg.position.x,3)) + " " + str(round(msg.position.y,3))
         self.sock.sendall(bytes(command, 'utf-8'))
         self.goal_pose = msg
@@ -153,20 +156,25 @@ class KheperaIVDriver(Node):
         # Read a command
         command = 'p'
         # Send the command to the server
-        self.sock.sendall(bytes(command, 'utf-8'))
-
-        data = self.sock.recv(1024).decode('utf-8')
-        value = data.split(',')
         try:
-            # d = float(value[0])
-            if self.init_pose:
-                self.theta = float(value[1])
-            # self.get_logger().info('Theta Robot: %.3f' % self.theta)
-            # self.pose.position.x += d * cos(self.theta)
-            # self.pose.position.y += d * sin(self.theta)
-            # self.pub_pose_.publish(self.pose)
+            self.sock.sendall(bytes(command, 'utf-8'))
+
+            data = self.sock.recv(1024).decode('utf-8')
+            value = data.split(',')
+            try:
+                # d = float(value[0])
+                if self.init_pose:
+                    self.theta = float(value[1])
+                # self.get_logger().info('Theta Robot: %.3f' % self.theta)
+                # self.pose.position.x += d * cos(self.theta)
+                # self.pose.position.y += d * sin(self.theta)
+                # self.pub_pose_.publish(self.pose)
+            except:
+                pass
         except:
+            self.get_logger().error('Fail get_pose()')
             pass
+
 
     def iterate(self):
         command = "i " + str(round(self.pose.position.x,3)) + " " + str(round(self.pose.position.y,3))+ " " + str(round(self.theta ,3))

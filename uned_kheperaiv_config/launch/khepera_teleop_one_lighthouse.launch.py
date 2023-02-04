@@ -17,7 +17,7 @@ def generate_launch_description():
         shell=True,
         emulate_tty=True,
         parameters=[
-            {'first_uri': 'radio://0/80/2M/E7E7E7E705'},
+            {'first_uri': 'radio://0/80/2M/E7E7E7E706'},
             {'n': 1},
             {'config': config_path}
         ]
@@ -27,12 +27,12 @@ def generate_launch_description():
         package='uned_kheperaiv_driver',
         executable='kheperaIV_client_driver',
         name='driver',
-        namespace='khepera01',
+        namespace='khepera02',
         output='screen',
         shell=True,
         emulate_tty=True,
         parameters=[
-            {'id': 'khepera01'},
+            {'id': 'khepera02'},
             {'config': config_path}
         ])
     rqt_node = Node(
@@ -49,19 +49,9 @@ def generate_launch_description():
         arguments=['-d', rviz_config_path],
 
     )
-    '''
-    vicon_node = Node(
-        package='vicon_receiver',
-        executable='vicon_client',
-        name='vicon_node',
-        parameters=[
-            {'hostname': hostname, 'buffer_size': buffer_size, 'namespace': topic_namespace}
-        ]
-    )
-    '''
+
     return LaunchDescription([
         swarm_node,
-        # vicon_node,
         robot_node,
         rqt_node,
         rviz_node

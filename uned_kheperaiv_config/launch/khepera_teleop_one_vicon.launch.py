@@ -17,12 +17,12 @@ def generate_launch_description():
         package='uned_kheperaiv_driver',
         executable='kheperaIV_client_driver',
         name='driver',
-        namespace='khepera01',
+        namespace='khepera03',
         output='screen',
         shell=True,
         emulate_tty=True,
         parameters=[
-            {'id': 'khepera01'},
+            {'id': 'khepera03'},
             {'config': config_path}
         ])
     rqt_node = Node(

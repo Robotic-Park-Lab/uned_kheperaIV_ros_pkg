@@ -20,7 +20,12 @@ dron05:
   name: khepera01
   control_mode: None
   controller_type: Continuous
-  communication: Continuous
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
   local_pose:
     enable: True
     T: 20
@@ -49,7 +54,7 @@ khepera02:
   id: khepera02
   agent_ip: '192.168.0.22'
   port_number: 50000
-  init_theta: -1.5707
+  init_theta: 1.5707
   communication:
     type: Continuous
     threshold:
@@ -66,7 +71,12 @@ dron06:
   name: khepera02
   control_mode: None
   controller_type: Continuous
-  communication: Continuous
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
   local_pose:
     enable: True
     T: 20

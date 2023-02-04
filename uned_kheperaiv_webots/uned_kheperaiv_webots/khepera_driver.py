@@ -2,6 +2,7 @@ from cmath import sqrt
 from rosgraph_msgs.msg import Clock
 import rclpy
 import os
+import numpy as np
 import math
 from rclpy.node import Node
 from rclpy.time import Time
@@ -94,6 +95,7 @@ class KheperaWebotsDriver:
         self.global_y = 0.0
         self.global_yaw = 0.0
         self.init_pose = False
+        self.last_pose = Pose()
 
         self.target_pose = Pose()
         self.target_pose.position.x = 0.0
@@ -196,7 +198,6 @@ class KheperaWebotsDriver:
         self.gt_pose.orientation.y = q[1]
         self.gt_pose.orientation.z = q[2]
         self.gt_pose.orientation.w = q[3]
-        self.pose_publisher.publish(self.gt_pose)
         
         t_base = TransformStamped()
         t_base.header.stamp = Time(seconds=self.robot.getTime()).to_msg()
@@ -214,7 +215,13 @@ class KheperaWebotsDriver:
         if not self.init_pose:
             self.target_pose.position.x = self.global_x
             self.target_pose.position.y= self.global_y
+            self.last_pose = self.gt_pose
             self.init_pose = True
+        
+        delta = np.array([self.gt_pose.position.x-self.last_pose.position.x,self.gt_pose.position.y-self.last_pose.position.y,self.gt_pose.position.z-self.last_pose.position.z])
+        if np.linalg.norm(delta) > 0.01:
+            self.pose_publisher.publish(self.gt_pose)
+            self.last_pose = self.gt_pose
         
         # TO-DO: Position Controller
         distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))

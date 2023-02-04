@@ -22,7 +22,7 @@ class Agent():
         if abs(msg.position.x)<1.15 and abs(msg.position.y)<1.15:
             self.pose = msg
             self.parent.distance_formation_bool = True
-
+        self.parent.get_logger().debug('Formation Control::New local pose.')
         line = Marker()
         p0 = Point()
         p0.x = self.parent.groundtruth.position.x
@@ -63,8 +63,6 @@ class KheperaIVDriver(Node):
         super().__init__('formation_control')
         # Params
         self.declare_parameter('config_file', 'file_path.yaml')
-        self.declare_parameter('agents', 'khepera01')
-        self.declare_parameter('distance', '0.2')
         self.declare_parameter('robot', 'khepera01')
 
         # Subscription
@@ -149,7 +147,7 @@ class KheperaIVDriver(Node):
                 dy += (1/4) * (pow(robot.distance,2) - distance) * error_y
                 
                 msg_data = Float64()
-                msg_data.data = robot.distance - sqrt(distance)
+                msg_data.data = abs(robot.distance - sqrt(distance))
                 robot.publisher_data_.publish(msg_data)
 
             if self.leader:
