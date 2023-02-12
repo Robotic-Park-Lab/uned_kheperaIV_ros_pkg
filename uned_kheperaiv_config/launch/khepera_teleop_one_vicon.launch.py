@@ -6,43 +6,23 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     config_package_dir = get_package_share_directory('uned_kheperaiv_config')
-    config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_teleop_default.yaml')
+    config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_teleop_vicon.yaml')
     rviz_config_path = os.path.join(config_package_dir, 'rviz', 'test.rviz')
 
-    swarm_config_package_dir = get_package_share_directory('uned_swarm_config')
-    swarm_config_path = os.path.join(swarm_config_package_dir, 'resources', 'AA00_distance_formation_configuration.yaml')
-    
     hostname = '10.196.92.136'
     buffer_size = 200
     topic_namespace = 'vicon'
-
-    swarm_node = Node(
-        package='uned_crazyflie_driver',
-        executable='swarm_driver',
-        name='swarm',
-        output='screen',
-        shell=True,
-        emulate_tty=True,
-        parameters=[
-            {'first_uri': 'radio://0/80/2M/E7E7E7E705'},
-            {'n': 1},
-            {'config': swarm_config_path}
-        ]
-    )
 
     robot_node = Node(
         package='uned_kheperaiv_driver',
         executable='kheperaIV_client_driver',
         name='driver',
-        namespace='khepera01',
+        namespace='khepera03',
         output='screen',
         shell=True,
         emulate_tty=True,
         parameters=[
-            {'agent_ip': '192.168.0.21'},
-            {'port_number': 50000},
-            {'id': 'khepera01'},
-            {'init_theta': 1.5707},
+            {'id': 'khepera03'},
             {'config': config_path}
         ])
     rqt_node = Node(
@@ -70,7 +50,6 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        # swarm_node,
         vicon_node,
         robot_node,
         rqt_node,

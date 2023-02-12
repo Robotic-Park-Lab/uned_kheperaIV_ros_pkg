@@ -6,7 +6,7 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     config_package_dir = get_package_share_directory('uned_kheperaiv_config')
-    config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_teleop_default.yaml')
+    config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_formation_distance_four_vicon.yaml')
     rviz_config_path = os.path.join(config_package_dir, 'rviz', 'test.rviz')
 
     hostname = '10.196.92.136'
@@ -22,8 +22,6 @@ def generate_launch_description():
         shell=True,
         emulate_tty=True,
         parameters=[
-            {'agent_ip': '192.168.0.21'},
-            {'port_number': 50000},
             {'id': 'khepera01'},
             {'config': config_path}
         ])
@@ -34,17 +32,9 @@ def generate_launch_description():
         output='screen',
         name='formation_control',
         namespace='khepera01',
-        remappings=[
-            ('/khepera01/khepera02/local_pose', '/khepera02/local_pose'),
-            ('/khepera01/khepera03/local_pose', '/khepera03/local_pose'),
-            ('/khepera01/turtlebot01/local_pose', '/turtlebot01/local_pose'),
-            ('/khepera01/swarm/status', '/swarm/status'),
-            ('/khepera01/swarm/order', '/swarm/order')],
         parameters=[
-            {"config_file": 'path'},
+            {"config_file": config_path},
             {"robot": 'khepera01'},
-            {"agents": 'khepera02, khepera03'},
-            {"distance": '0.6, 0.6'},
         ]
     )
 
@@ -57,8 +47,6 @@ def generate_launch_description():
         shell=True,
         emulate_tty=True,
         parameters=[
-            {'agent_ip': '192.168.0.22'},
-            {'port_number': 50000},
             {'id': 'khepera02'},
             {'config': config_path}
         ])
@@ -69,17 +57,9 @@ def generate_launch_description():
         output='screen',
         name='formation_control',
         namespace='khepera02',
-        remappings=[
-            ('/khepera02/khepera01/local_pose', '/khepera01/local_pose'),
-            ('/khepera02/khepera03/local_pose', '/khepera03/local_pose'),
-            ('/khepera02/turtlebot01/local_pose', '/turtlebot01/local_pose'),
-            ('/khepera02/swarm/status', '/swarm/status'),
-            ('/khepera02/swarm/order', '/swarm/order')],
         parameters=[
-            {"config_file": 'path'},
+            {"config_file": config_path},
             {"robot": 'khepera02'},
-            {"agents": 'khepera01, khepera03'},
-            {"distance": '0.6, 0.6'},
         ]
     )
 
@@ -92,8 +72,6 @@ def generate_launch_description():
         shell=True,
         emulate_tty=True,
         parameters=[
-            {'agent_ip': '192.168.0.19'},
-            {'port_number': 50000},
             {'id': 'khepera03'},
             {'config': config_path}
         ])
@@ -104,16 +82,34 @@ def generate_launch_description():
         output='screen',
         name='formation_control',
         namespace='khepera03',
-        remappings=[
-            ('/khepera03/khepera02/local_pose', '/khepera02/local_pose'),
-            ('/khepera03/khepera01/local_pose', '/khepera01/local_pose'),
-            ('/khepera03/swarm/status', '/swarm/status'),
-            ('/khepera03/swarm/order', '/swarm/order')],
         parameters=[
-            {"config_file": 'path'},
+            {"config_file": config_path},
             {"robot": 'khepera03'},
-            {"agents": 'khepera02, khepera01'},
-            {"distance": '0.6, 0.6'},
+        ]
+    )
+
+    robot04_node = Node(
+        package='uned_kheperaiv_driver',
+        executable='kheperaIV_client_driver',
+        name='driver',
+        namespace='khepera04',
+        output='screen',
+        shell=True,
+        emulate_tty=True,
+        parameters=[
+            {'id': 'khepera04'},
+            {'config': config_path}
+        ])
+
+    robot04_task = Node(
+        package='uned_kheperaiv_task',
+        executable='distance_based_formation_control',
+        output='screen',
+        name='formation_control',
+        namespace='khepera04',
+        parameters=[
+            {"config_file": config_path},
+            {"robot": 'khepera04'},
         ]
     )
     
@@ -138,7 +134,8 @@ def generate_launch_description():
         name='vicon_node',
         parameters=[
             {'hostname': hostname, 'buffer_size': buffer_size, 'namespace': topic_namespace}
-        ])
+        ]
+    )
 
     return LaunchDescription([
         robot01_node,
@@ -147,6 +144,8 @@ def generate_launch_description():
         robot02_task,
         robot03_node,
         robot03_task,
+        robot04_node,
+        robot04_task,
         rqt_node,
         rviz_node,
         vicon_node
