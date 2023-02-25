@@ -36,6 +36,7 @@ Floor {
 Khepera4 {
   translation 0 -0.15 0
   rotation 0 0 1 1
+  supervisor TRUE
   turretSlot [
     GPS {
     }

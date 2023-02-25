@@ -78,6 +78,7 @@ class KheperaWebotsDriver:
     def init(self, webots_node, properties):
         
         self.robot = webots_node.robot
+        
         timestep = int(self.robot.getBasicTimeStep())
 
         ## Initialize motors
@@ -138,6 +139,7 @@ class KheperaWebotsDriver:
         self.pose_publisher = self.node.create_publisher(Pose, self.name_value+'/local_pose', 10)
         self.range_publisher = self.node.create_publisher(Range, self.name_value+'/range0', 10)
         self.node.create_subscription(Twist, self.name_value+'/cmd_vel', self.cmd_vel_callback, 1)
+        self.node.create_subscription(Pose, self.name_value+'/pose_dt', self.dt_pose_callback, 1)
         self.node.create_subscription(Pose, self.name_value+'/goal_pose', self.goal_pose_callback, 1)
         self.tfbr = TransformBroadcaster(self.node)
     
@@ -169,6 +171,10 @@ class KheperaWebotsDriver:
         self.msg_laser.angle_max =  0.5 * pi
         self.msg_laser.angle_increment = pi/4
         self.laser_publisher.publish(self.msg_laser)
+
+    def dt_pose_callback(self, pose):
+        self.node.get_logger().info('DT Pose: X:%f Y:%f' % (pose.position.x,pose.position.y))
+        self.robot.getSelf().getField("translation").setSFVec3f([pose.position.x, pose.position.y, 0.05])
 
     def cmd_vel_callback(self, twist):
         self.target_twist = twist
