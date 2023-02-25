@@ -1,9 +1,6 @@
-from cmath import sqrt
 from rosgraph_msgs.msg import Clock
 import rclpy
 import os
-import numpy as np
-import math
 from rclpy.node import Node
 from rclpy.time import Time
 
@@ -11,9 +8,10 @@ from geometry_msgs.msg import Twist, Pose
 from sensor_msgs.msg import LaserScan, Range
 from nav_msgs.msg import Odometry
 
-from math import atan2, cos, sin, degrees, radians, pi
+from math import atan2, cos, sin, sqrt, radians, pi
 import sys
 import tf_transformations
+import numpy as np
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 
@@ -124,13 +122,6 @@ class KheperaWebotsDriver:
         ## Intialize Variables
         self.past_time = self.robot.getTime()
 
-        ## Intialize Controllers
-        self.continuous = False
-        # Position
-        self.linear_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 1.0, -1.0, 0.05, 0.01)
-        # Angle
-        self.angular_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 0.0, 0.0, 0.1, 0.1)
-
         ## ROS2 Environment
         self.name_value = os.environ['WEBOTS_ROBOT_NAME']
         rclpy.init(args=None)
@@ -142,6 +133,21 @@ class KheperaWebotsDriver:
         self.node.create_subscription(Pose, self.name_value+'/pose_dt', self.dt_pose_callback, 1)
         self.node.create_subscription(Pose, self.name_value+'/goal_pose', self.goal_pose_callback, 1)
         self.tfbr = TransformBroadcaster(self.node)
+
+        ## Intialize Controllers
+        self.node.get_logger().info('Webots_Node::Param. %s' % (str(properties.get("controller"))))
+        if properties.get("controller") == 'IPC':
+            self.controller_IPC = True
+            self.eomas = 3.14
+            self.node.get_logger().info('%s::IPC Controller' % (str(self.name_value)))
+        else:
+            self.controller_IPC = False
+            self.node.get_logger().info('%s::Force Field Controller' % (str(self.name_value)))
+        self.continuous = False
+        # Position
+        self.linear_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 1.0, -1.0, 0.05, 0.01)
+        # Angle
+        self.angular_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 0.0, 0.0, 0.1, 0.1)
     
     def publish_laserscan_data(self):
         left_range = self.range_left.getValue()
@@ -229,30 +235,36 @@ class KheperaWebotsDriver:
             self.pose_publisher.publish(self.gt_pose)
             self.last_pose = self.gt_pose
         
-        # TO-DO: Position Controller
-        distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
-        angle_error = -self.global_yaw+atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
-
-        self.target_twist = self.forces_field(dt, distance_error, angle_error)
+        # Position Controller
+        if self.controller_IPC:
+            self.target_twist = self.IPC_controller()
+            self.node.get_logger().info('IPC: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
+        else:
+            # Force Field
+            distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
+            angle_error = -self.global_yaw+atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
+            self.target_twist = self.forces_field(dt, distance_error, angle_error)
+            
+            self.node.get_logger().debug('Force Field: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
+            self.node.get_logger().debug('Distance:%f Angle:%f' % (distance_error.real,angle_error))
         
+        # PID
         # self.linear_controller.error[0] = distance_error
         # self.angular_controller.error[0] = angle_error
         # self.target_twist.linear.x = self.linear_controller.update(dt)
         # self.target_twist.angular.z = self.angular_controller.update(dt)
 
         # Velocity [rad/s]
-        self.motor_left.setVelocity((self.target_twist.linear.x/0.042-0.10540*self.target_twist.angular.z))
-        self.motor_right.setVelocity((self.target_twist.linear.x/0.042+0.10540*self.target_twist.angular.z))
+        # self.motor_left.setVelocity((self.target_twist.linear.x/0.042-0.10540*self.target_twist.angular.z))
+        # self.motor_right.setVelocity((self.target_twist.linear.x/0.042+0.10540*self.target_twist.angular.z))
 
         # TO-DO: Introducir Modelo Cinemático Diferencial Directo -> /odom
 
         self.past_time = self.robot.getTime()
 
         self.node.get_logger().debug('Pose3D: X:%f Y:%f yaw:%f' % (self.global_x,self.global_y,self.global_yaw))
-        
         self.node.get_logger().debug('PID cmd: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
-        self.node.get_logger().debug('Force Field: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
-        self.node.get_logger().debug('Distance:%f Angle:%f' % (distance_error.real,angle_error))
+        
 
     
     def forces_field(self,dt, error, angle_error):
@@ -349,5 +361,67 @@ class KheperaWebotsDriver:
 
         return out 
 
+    def IPC_controller(self):
+        L = 0.10540
+        Vmax = 1.0
+        K1 = 0.1
+        Kp = 1.5
+        Ki = 0.008
 
+        d = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))*100
+        alpha = atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
+        oc = alpha - self.global_yaw
+        eo = atan2(sin(oc),cos(oc))
+        p = (3.14-abs(eo))/3.14
+        V = min(K1*d*p,Vmax)
+
+        self.eomas = eo+self.eomas
+        w = Kp*sin(eo) + Ki*self.eomas*0.003
+
+        ## Cmd_Vel
+        out = Twist()
+        out.linear.x = V
+        out.angular.z = w
+
+        self.motor_left.setVelocity((V-(w*L*100)/2))
+        self.motor_right.setVelocity((V+(2*V+w*L*100)/2))
+
+        return out 
+        '''
+        Position_control=function(xp,yp,xc,yc,gamma,Vmax,Wmax,L,Kr)
+            d = math.sqrt(((xp-xc)^2)+((yp-yc)^2))*100      
+            alpha = math.atan2(yp-yc,xp-xc)
+            Oc = alpha-gamma
+            eo= math.atan2((math.sin(Oc)),(math.cos(Oc)))
+            % w=(Wmax*math.sin(eo))
+            p=(3.14-math.abs(eo))/3.14
+            V=math.min(K1*d*p,Vmax)
+   
+            eomas=eo+eomas
+            w=Kp*math.sin(eo)+Ki*eomas*0.003
+
+            % result=simxAddStatusbarMessage(,oemas,simx_opmode_oneshot)
+
+            % if (d>Kr) then--(d>=0.005 or Oc>=0.087)) then
+            %    w=(Wmax*math.sin(Oc))
+            %    V=(Kp*d)
+            %    if V>Vmax then
+            %        V=Vmax
+            %    end
+            %    Vr=(2*V+w*L)/2    
+            %    Vl=(2*V-w*L)/2    
+            %    Flag=0
+            % else
+            %    V=d*(Vmax/Kr)
+            %    Vl=0
+            %    Vr=0
+                Flag=1
+            % end
+
+            Vr=((2*V+w*L*100)/2)/100    
+            Vl=((2*V-w*L*100)/2)/100
+   
+
+            return Flag,Vr,Vl
+        '''
 

@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<robot name="khepera01">
+    <webots>
+        <plugin type="uned_kheperaiv_webots.khepera_driver.KheperaWebotsDriver">
+            <controller>ForceField</controller>
+        </plugin>
+    </webots>
+</robot>

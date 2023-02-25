@@ -12,7 +12,7 @@ from webots_ros2_driver.utils import controller_url_prefix
 
 def generate_launch_description():
     package_dir = get_package_share_directory('uned_kheperaiv_webots')
-    robot_description = pathlib.Path(os.path.join(package_dir, 'resource', 'kheperaiv.urdf')).read_text()
+    robot_description = pathlib.Path(os.path.join(package_dir, 'resource', 'kheperaiv_IPC.urdf')).read_text()
     use_sim_time = LaunchConfiguration('use_sim_time', default=True)
     webots = WebotsLauncher(
         world=os.path.join(package_dir, 'worlds', 'RoboticPark_1kh.wbt')
