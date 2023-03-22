@@ -3,10 +3,13 @@ import rclpy
 import os
 from rclpy.node import Node
 from rclpy.time import Time
+import yaml
 
-from geometry_msgs.msg import Twist, Pose
+from std_msgs.msg import String, Bool, Float64
+from geometry_msgs.msg import Twist, Pose, Point
 from sensor_msgs.msg import LaserScan, Range
 from nav_msgs.msg import Odometry
+from visualization_msgs.msg import Marker
 
 from math import atan2, cos, sin, sqrt, radians, pi
 import sys
@@ -14,6 +17,66 @@ import tf_transformations
 import numpy as np
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
+
+class Agent():
+    def __init__(self, parent, id, x = None, y = None, z = None, d = None):
+        self.id = id
+        if d == None:
+            self.x = x
+            self.y = y
+            self.z = z
+        else:
+            self.d = d
+        self.pose = Pose()
+        self.parent = parent
+        self.sub_pose = self.parent.node.create_subscription(Pose, self.id + '/local_pose', self.gtpose_callback, 10)
+        self.publisher_data_ = self.parent.node.create_publisher(Float64, self.parent.name_value + '/' + self.id + '/data', 10)
+        self.publisher_marker = self.parent.node.create_publisher(Marker, self.parent.name_value + '/' + self.id + '/marker', 10)
+
+    def str_(self):
+        return ('ID: ' + str(self.id) + ' X: ' + str(self.x) +
+                ' Y: ' + str(self.y)+' Z: ' + str(self.z))
+
+    def gtpose_callback(self, msg):
+        self.pose = msg
+
+        line = Marker()
+        p0 = Point()
+        p0.x = self.parent.gt_pose.position.x
+        p0.y = self.parent.gt_pose.position.y
+        p0.z = self.parent.gt_pose.position.z
+
+        p1 = Point()
+        p1.x = self.pose.position.x
+        p1.y = self.pose.position.y
+        p1.z = self.pose.position.z
+        # self.parent.distance_formation_bool = True
+
+        distance = sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2)+pow(p0.z-p1.z,2))
+    
+        line.header.frame_id = 'map'
+        line.header.stamp = self.parent.node.get_clock().now().to_msg()
+        line.id = 1
+        line.type = 5
+        line.action = 0
+        line.scale.x = 0.01
+        line.scale.y = 0.01
+        line.scale.z = 0.01
+
+        if abs(distance - self.d) > 0.05:
+            line.color.r = 1.0
+        else:
+            if abs(distance - self.d) > 0.025:
+                line.color.r = 1.0
+                line.color.g = 0.5
+            else:
+                line.color.g = 1.0
+        line.color.a = 1.0
+        line.points.append(p1)
+        line.points.append(p0)
+
+        self.publisher_marker.publish(line)
+
 
 class PIDController():
     def __init__(self, Kp, Ki, Kd, Td, Nd, UpperLimit, LowerLimit, ai, co):
@@ -96,10 +159,6 @@ class KheperaWebotsDriver:
         self.init_pose = False
         self.last_pose = Pose()
 
-        self.target_pose = Pose()
-        self.target_pose.position.x = 0.0
-        self.target_pose.position.y= 0.0
-
         ## Initialize Sensors
         self.gyro = self.robot.getDevice("gyro")
         self.gyro.enable(timestep)
@@ -107,7 +166,6 @@ class KheperaWebotsDriver:
         self.gps.enable(timestep)
         self.imu = self.robot.getDevice("inertial unit")
         self.imu.enable(timestep)
-
         self.range_left = self.robot.getDevice("left ultrasonic sensor")
         self.range_left.enable(timestep)
         self.range_frontleft = self.robot.getDevice("front left ultrasonic sensor")
@@ -121,21 +179,35 @@ class KheperaWebotsDriver:
 
         ## Intialize Variables
         self.past_time = self.robot.getTime()
+        self.gt_pose = Pose()
+        self.target_pose = Pose()
+        self.target_pose.position.x = 0.0
+        self.target_pose.position.y= 0.0
+        self.distance_formation_bool = False
+
+        # Position
+        self.linear_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 1.0, -1.0, 0.05, 0.01)
+        # Angle
+        self.angular_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 0.0, 0.0, 0.1, 0.1)
 
         ## ROS2 Environment
         self.name_value = os.environ['WEBOTS_ROBOT_NAME']
         rclpy.init(args=None)
         self.node = rclpy.create_node(self.name_value+'_driver')
-        self.node.get_logger().info('Webots_Node::inicialize() ok. %s' % (str(self.name_value)))
-        self.pose_publisher = self.node.create_publisher(Pose, self.name_value+'/local_pose', 10)
-        self.range_publisher = self.node.create_publisher(Range, self.name_value+'/range0', 10)
+
+        # Subscription
         self.node.create_subscription(Twist, self.name_value+'/cmd_vel', self.cmd_vel_callback, 1)
         self.node.create_subscription(Pose, self.name_value+'/pose_dt', self.dt_pose_callback, 1)
         self.node.create_subscription(Pose, self.name_value+'/goal_pose', self.goal_pose_callback, 1)
-        self.tfbr = TransformBroadcaster(self.node)
+        self.node.create_subscription(String, self.name_value+'/order', self.order_callback, 1)
+        self.node.create_subscription(String, 'swarm/order', self.order_callback, 1)
 
+        # Publisher
+        self.pose_publisher = self.node.create_publisher(Pose, self.name_value+'/local_pose', 10)
+        self.laser_publisher = self.node.create_publisher(LaserScan, self.name_value+'/scan', 10)
+        self.range_publisher = self.node.create_publisher(Range, self.name_value+'/range0', 10)
+        
         ## Intialize Controllers
-        self.node.get_logger().info('Webots_Node::Param. %s' % (str(properties.get("controller"))))
         if properties.get("controller") == 'IPC':
             self.controller_IPC = True
             self.eomas = 3.14
@@ -144,11 +216,44 @@ class KheperaWebotsDriver:
             self.controller_IPC = False
             self.node.get_logger().info('%s::Force Field Controller' % (str(self.name_value)))
         self.continuous = False
-        # Position
-        self.linear_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 1.0, -1.0, 0.05, 0.01)
-        # Angle
-        self.angular_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 0.0, 0.0, 0.1, 0.1)
-    
+        self.tfbr = TransformBroadcaster(self.node)
+
+        self.initialize()
+
+    def initialize(self):
+        self.node.get_logger().info('Webots_Node::inicialize() ok. %s' % (str(self.name_value)))
+        # Read Params
+        config_file = os.environ['WEBOTS_ROBOT_CONFIG_FILE']
+
+        with open(config_file, 'r') as file:
+            documents = yaml.safe_load(file)
+        self.config = documents[self.name_value]
+
+        # Init relationship
+        if self.config['task']['enable']:
+            self.node.get_logger().info('Task %s' % self.config['task']['type'])
+            self.agent_list = list()
+            aux = self.config['task']['relationship']
+            self.relationship = aux.split(', ')
+            if self.config['task']['type'] == 'distance':
+                for rel in self.relationship:
+                    aux = rel.split('_')
+                    robot = Agent(self, aux[0], d = float(aux[1]))
+                    # self.node.get_logger().info('CF: %s: Agent: %s \td: %s' % (self.name_value, aux[0], aux[1]))
+                    self.agent_list.append(robot)
+        self.communication = (self.config['communication']['type'] == 'Continuous')
+        if not self.communication:
+            self.threshold = self.config['communication']['threshold']['co']
+        else:
+            self.threshold = 0.001
+
+    def order_callback(self, msg):
+        self.node.get_logger().info('Order: "%s"' % msg.data)
+        if msg.data == 'distance_formation_run':
+            self.distance_formation_bool = True
+        else:
+            self.node.get_logger().error('"%s": Unknown order' % (msg.data))
+            
     def publish_laserscan_data(self):
         left_range = self.range_left.getValue()
         frontleft_range = self.range_frontleft.getValue()
@@ -169,7 +274,7 @@ class KheperaWebotsDriver:
  
         self.msg_laser = LaserScan()
         self.msg_laser.header.stamp = Time(seconds=self.robot.getTime()).to_msg()
-        self.msg_laser.header.frame_id = 'base_link'
+        self.msg_laser.header.frame_id = self.name_value
         self.msg_laser.range_min = 0.25
         self.msg_laser.range_max = max_range
         self.msg_laser.ranges = [left_range, frontleft_range, front_range, frontright_range, right_range]
@@ -214,7 +319,7 @@ class KheperaWebotsDriver:
         t_base = TransformStamped()
         t_base.header.stamp = Time(seconds=self.robot.getTime()).to_msg()
         t_base.header.frame_id = 'map'
-        t_base.child_frame_id = self.name_value
+        t_base.child_frame_id = self.name_value+'/base_link'
         t_base.transform.translation.x = self.global_x
         t_base.transform.translation.y = self.global_y
         t_base.transform.translation.z = self.gps.getValues()[2]
@@ -225,20 +330,26 @@ class KheperaWebotsDriver:
         self.tfbr.sendTransform(t_base)
         
         if not self.init_pose:
+
             self.target_pose.position.x = self.global_x
             self.target_pose.position.y= self.global_y
             self.last_pose = self.gt_pose
             self.init_pose = True
         
         delta = np.array([self.gt_pose.position.x-self.last_pose.position.x,self.gt_pose.position.y-self.last_pose.position.y,self.gt_pose.position.z-self.last_pose.position.z])
-        if np.linalg.norm(delta) > 0.01:
+        if np.linalg.norm(delta) > 0.01 or True:
             self.pose_publisher.publish(self.gt_pose)
             self.last_pose = self.gt_pose
         
+        ## Formation Control
+        if self.distance_formation_bool:
+            self.distance_formation_control()
+            # self.distance_formation_bool = False
+
         # Position Controller
         if self.controller_IPC:
             self.target_twist = self.IPC_controller()
-            self.node.get_logger().info('IPC: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
+            self.node.get_logger().debug('IPC: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
         else:
             # Force Field
             distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
@@ -266,7 +377,39 @@ class KheperaWebotsDriver:
         self.node.get_logger().debug('PID cmd: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
         
 
-    
+    def distance_formation_control(self):
+        dx = dy = dz = 0
+        for agent in self.agent_list:
+            error_x = self.gt_pose.position.x - agent.pose.position.x
+            error_y = self.gt_pose.position.y - agent.pose.position.y
+            error_z = self.gt_pose.position.z - agent.pose.position.z
+            distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
+            dx += (pow(agent.d,2) - distance) * error_x
+            dy += (pow(agent.d,2) - distance) * error_y
+
+            msg_data = Float64()
+            msg_data.data = abs(agent.d - sqrt(distance))
+            agent.publisher_data_.publish(msg_data)
+            self.node.get_logger().debug('Agent %s: D: %.2f dx: %.2f dy: %.2f dz: %.2f ' % (agent.id, msg_data.data, dx, dy, dz)) 
+
+        error_r = pow(1.0,2) - (pow(self.gt_pose.position.x,2)+pow(self.gt_pose.position.y,2))
+        dx += 2 * (error_r *self.gt_pose.position.x)
+        dy += 2 * (error_r * self.gt_pose.position.y)
+        
+        if dx > 0.32:
+            dx = 0.32
+        if dx < -0.32:
+            dx = -0.32
+        if dy > 0.32:
+            dy = 0.32
+        if dy < -0.32:
+            dy = -0.32
+
+        self.target_pose.position.x = self.gt_pose.position.x + dx/4
+        self.target_pose.position.y = self.gt_pose.position.y + dy/4
+
+        self.node.get_logger().debug('Formation: X: %.2f->%.2f Y: %.2f->%.2f Z: %.2f->%.2f' % (self.gt_pose.position.x, self.target_pose.position.x, self.gt_pose.position.y, self.target_pose.position.y, self.gt_pose.position.z, self.target_pose.position.z)) 
+
     def forces_field(self,dt, error, angle_error):
         Ka = -1.0
         Kr = 150

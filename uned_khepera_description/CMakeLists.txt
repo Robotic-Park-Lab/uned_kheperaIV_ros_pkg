@@ -16,18 +16,26 @@ file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/urdf")
 
 foreach (INDEX RANGE 0 8)
   if (${INDEX} EQUAL 0)
+    set(PREFFIX "")
     set(SUFFIX "")
     set(TOPIC_NS "solo")
   else ()
-    set(SUFFIX "_${INDEX}")
-    set(TOPIC_NS "khepera${INDEX}")
+    if (${INDEX} GREATER 9)
+      set(PREFFIX "khepera${INDEX}")
+      set(SUFFIX "_${INDEX}")
+      set(TOPIC_NS "khepera${INDEX}")
+    else ()
+      set(PREFFIX "khepera0${INDEX}")
+      set(SUFFIX "_${INDEX}")
+      set(TOPIC_NS "khepera0${INDEX}")
+      endif()
   endif ()
   set(URDF_FILE "${CMAKE_CURRENT_BINARY_DIR}/urdf/khepera${SUFFIX}.urdf")
   message(STATUS "creating rules for ${URDF_FILE}")
   add_custom_command(
     OUTPUT ${URDF_FILE}
     COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/src/replace.py"
-    "${CMAKE_CURRENT_SOURCE_DIR}/urdf/khepera.xml" "suffix=${SUFFIX}" "topic_ns=${TOPIC_NS}" ">" "${URDF_FILE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/urdf/khepera.xml" "preffix=${PREFFIX}" "suffix=${SUFFIX}" "topic_ns=${TOPIC_NS}" ">" "${URDF_FILE}"
     DEPENDS urdf/khepera.xml
     COMMENT "Generate ${URDF_FILE}"
     VERBATIM

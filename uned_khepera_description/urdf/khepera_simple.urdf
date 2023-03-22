@@ -1,14 +1,7 @@
 <?xml version="1.0"?>
 <robot name="khepera">
-        
-    <material name="red">
-        <color rgba="1.0 0.0 0.0 1"/>
-    </material>
 
-    <link name="base_link">
-    </link>
-
-    <link name="chassis">
+    <link name='base_link'>
         <pose>0 0 0.0 0 -0 0</pose>
         <inertial>
             <mass value="0.5"/>
@@ -27,41 +20,5 @@
             </geometry>
         </collision>
     </link>
-
-    <joint name="base_link_joint" type="fixed">
-        <origin rpy="0 0 0" xyz="0.0 0 0" />
-        <parent link="base_link" />
-        <child link="chassis" />
-    </joint>
-
-    <!-- Wheel Left -->
-    <link name="left_wheel">    
-        <inertial>
-            <mass value="0.02"/>
-            <origin rpy="-1.57070 0 0" xyz="0 0.0527 0.021"/>
-            <inertia ixx="0.000003" ixy="0" ixz="0" iyy="0.000003" iyz="0" izz="0.000003"/>
-        </inertial> 
-        <visual>
-            <origin rpy="-1.57070 0 0" xyz="0 0.0527 0.021"/>
-            <geometry>
-                <mesh filename="package://uned_khepera_description/meshes/files/wheel.dae" scale="1.0 1.0 1.0"/>
-            </geometry>
-        </visual>
-        <collision name='collision'>
-            <geometry>
-                <mesh filename="package://uned_khepera_description/meshes/files/wheel.dae" scale="1.0 1.0 1.0"/>
-            </geometry>
-        </collision>
-    </link>
-
-
-    <joint name="left_wheel_joint" type="fixed">
-        <origin rpy="-1.57070 0 0" xyz="0 0.0527 0.021"/>
-        <child link="left_wheel"/>
-        <parent link="base_link"/>
-        <axis rpy="0 0 0" xyz="0 1 0"/>
-        <limit effort="10000" velocity="1000"/>
-        <joint_properties damping="1.0" friction="1.0"/>
-    </joint>
   
 </robot>
