@@ -31,7 +31,7 @@ install(
     launch
     model
     worlds
-    resource
+    resources
     rviz
   DESTINATION share/${PROJECT_NAME}
 )

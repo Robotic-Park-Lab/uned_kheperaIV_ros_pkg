@@ -30,8 +30,9 @@ class Agent():
         self.pose = Pose()
         self.parent = parent
         self.sub_pose = self.parent.node.create_subscription(Pose, self.id + '/local_pose', self.gtpose_callback, 10)
-        self.publisher_data_ = self.parent.node.create_publisher(Float64, self.parent.name_value + '/' + self.id + '/data', 10)
-        self.publisher_marker = self.parent.node.create_publisher(Marker, self.parent.name_value + '/' + self.id + '/marker', 10)
+        if not self.parent.digital_twin:
+            self.publisher_data_ = self.parent.node.create_publisher(Float64, self.parent.name_value + '/' + self.id + '/data', 10)
+            self.publisher_marker = self.parent.node.create_publisher(Marker, self.parent.name_value + '/' + self.id + '/marker', 10)
 
     def str_(self):
         return ('ID: ' + str(self.id) + ' X: ' + str(self.x) +
@@ -39,43 +40,43 @@ class Agent():
 
     def gtpose_callback(self, msg):
         self.pose = msg
+        if not self.parent.digital_twin:
+            line = Marker()
+            p0 = Point()
+            p0.x = self.parent.gt_pose.position.x
+            p0.y = self.parent.gt_pose.position.y
+            p0.z = self.parent.gt_pose.position.z
 
-        line = Marker()
-        p0 = Point()
-        p0.x = self.parent.gt_pose.position.x
-        p0.y = self.parent.gt_pose.position.y
-        p0.z = self.parent.gt_pose.position.z
+            p1 = Point()
+            p1.x = self.pose.position.x
+            p1.y = self.pose.position.y
+            p1.z = self.pose.position.z
+            # self.parent.distance_formation_bool = True
 
-        p1 = Point()
-        p1.x = self.pose.position.x
-        p1.y = self.pose.position.y
-        p1.z = self.pose.position.z
-        # self.parent.distance_formation_bool = True
+            distance = sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2)+pow(p0.z-p1.z,2))
+        
+            line.header.frame_id = 'map'
+            line.header.stamp = self.parent.node.get_clock().now().to_msg()
+            line.id = 1
+            line.type = 5
+            line.action = 0
+            line.scale.x = 0.01
+            line.scale.y = 0.01
+            line.scale.z = 0.01
 
-        distance = sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2)+pow(p0.z-p1.z,2))
-    
-        line.header.frame_id = 'map'
-        line.header.stamp = self.parent.node.get_clock().now().to_msg()
-        line.id = 1
-        line.type = 5
-        line.action = 0
-        line.scale.x = 0.01
-        line.scale.y = 0.01
-        line.scale.z = 0.01
-
-        if abs(distance - self.d) > 0.05:
-            line.color.r = 1.0
-        else:
-            if abs(distance - self.d) > 0.025:
+            if abs(distance - self.d) > 0.05:
                 line.color.r = 1.0
-                line.color.g = 0.5
             else:
-                line.color.g = 1.0
-        line.color.a = 1.0
-        line.points.append(p1)
-        line.points.append(p0)
+                if abs(distance - self.d) > 0.025:
+                    line.color.r = 1.0
+                    line.color.g = 0.5
+                else:
+                    line.color.g = 1.0
+            line.color.a = 1.0
+            line.points.append(p1)
+            line.points.append(p0)
 
-        self.publisher_marker.publish(line)
+            self.publisher_marker.publish(line)
 
 
 class PIDController():
@@ -194,18 +195,23 @@ class KheperaWebotsDriver:
         self.name_value = os.environ['WEBOTS_ROBOT_NAME']
         rclpy.init(args=None)
         self.node = rclpy.create_node(self.name_value+'_driver')
+        self.digital_twin = os.environ['WEBOTS_ROBOT_ROLE'] == 'digital_twin'
 
         # Subscription
         self.node.create_subscription(Twist, self.name_value+'/cmd_vel', self.cmd_vel_callback, 1)
-        self.node.create_subscription(Pose, self.name_value+'/pose_dt', self.dt_pose_callback, 1)
         self.node.create_subscription(Pose, self.name_value+'/goal_pose', self.goal_pose_callback, 1)
         self.node.create_subscription(String, self.name_value+'/order', self.order_callback, 1)
         self.node.create_subscription(String, 'swarm/order', self.order_callback, 1)
 
         # Publisher
-        self.pose_publisher = self.node.create_publisher(Pose, self.name_value+'/local_pose', 10)
         self.laser_publisher = self.node.create_publisher(LaserScan, self.name_value+'/scan', 10)
         self.range_publisher = self.node.create_publisher(Range, self.name_value+'/range0', 10)
+        if self.digital_twin:
+            self.node.create_subscription(Pose, self.name_value+'/local_pose', self.dt_pose_callback, 1)
+            pose_name = self.name_value+'/dt_pose'
+        else:
+            pose_name = self.name_value+'/local_pose'
+        self.pose_publisher = self.node.create_publisher(Pose, pose_name, 10)
         
         ## Intialize Controllers
         if properties.get("controller") == 'IPC':
@@ -284,8 +290,13 @@ class KheperaWebotsDriver:
         self.laser_publisher.publish(self.msg_laser)
 
     def dt_pose_callback(self, pose):
-        self.node.get_logger().info('DT Pose: X:%f Y:%f' % (pose.position.x,pose.position.y))
-        self.robot.getSelf().getField("translation").setSFVec3f([pose.position.x, pose.position.y, 0.05])
+        self.node.get_logger().debug('DT Pose: X:%f Y:%f' % (pose.position.x,pose.position.y))
+        delta = np.array([self.gt_pose.position.x-pose.position.x,self.gt_pose.position.y-pose.position.y,self.gt_pose.position.z-pose.position.z])
+        
+        if np.linalg.norm(delta)>0.05:
+            self.node.get_logger().debug('DT Pose: X:%f Y:%f' % (pose.position.x,pose.position.y))
+            self.robot.getSelf().getField("translation").setSFVec3f([pose.position.x, pose.position.y, 0.015])
+            # self.robot.getSelf().getField("rotation").setSFVec3f([0.0, 0.0, 0.0])
 
     def cmd_vel_callback(self, twist):
         self.target_twist = twist
@@ -319,7 +330,11 @@ class KheperaWebotsDriver:
         t_base = TransformStamped()
         t_base.header.stamp = Time(seconds=self.robot.getTime()).to_msg()
         t_base.header.frame_id = 'map'
-        t_base.child_frame_id = self.name_value+'/base_link'
+        if self.digital_twin:
+            base_name = self.name_value+'_dt/base_link'
+        else:
+            base_name = self.name_value+'/base_link'
+        t_base.child_frame_id = base_name
         t_base.transform.translation.x = self.global_x
         t_base.transform.translation.y = self.global_y
         t_base.transform.translation.z = self.gps.getValues()[2]
@@ -387,10 +402,11 @@ class KheperaWebotsDriver:
             dx += (pow(agent.d,2) - distance) * error_x
             dy += (pow(agent.d,2) - distance) * error_y
 
-            msg_data = Float64()
-            msg_data.data = abs(agent.d - sqrt(distance))
-            agent.publisher_data_.publish(msg_data)
-            self.node.get_logger().debug('Agent %s: D: %.2f dx: %.2f dy: %.2f dz: %.2f ' % (agent.id, msg_data.data, dx, dy, dz)) 
+            if not self.digital_twin:
+                msg_data = Float64()
+                msg_data.data = abs(agent.d - sqrt(distance))
+                agent.publisher_data_.publish(msg_data)
+                self.node.get_logger().debug('Agent %s: D: %.2f dx: %.2f dy: %.2f dz: %.2f ' % (agent.id, msg_data.data, dx, dy, dz)) 
 
         error_r = pow(1.0,2) - (pow(self.gt_pose.position.x,2)+pow(self.gt_pose.position.y,2))
         dx += 2 * (error_r *self.gt_pose.position.x)
@@ -506,8 +522,8 @@ class KheperaWebotsDriver:
 
     def IPC_controller(self):
         L = 0.10540
-        Vmax = 1.0
-        K1 = 0.1
+        Vmax = 10.0
+        K1 = 1.0
         Kp = 1.5
         Ki = 0.008
 
@@ -526,8 +542,9 @@ class KheperaWebotsDriver:
         out.linear.x = V
         out.angular.z = w
 
-        self.motor_left.setVelocity((V-(w*L*100)/2))
-        self.motor_right.setVelocity((V+(2*V+w*L*100)/2))
+        self.motor_right.setVelocity((V+(w*L*100)/2)/0.067)
+        self.motor_left.setVelocity(( V-(w*L*100)/2)/0.067)
+        
 
         return out 
         '''

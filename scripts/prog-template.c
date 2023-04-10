@@ -88,6 +88,11 @@ int main(int argc, char *argv[]) {
   float theta = 0.f;
   float alfa = 0.f;
   float d_error = 0.f;
+  // IPC
+  float oc = 0.f;
+  float eo = 0.f;
+  float p = 0.f;
+  float eomas = 0.f;
 
   /* Set the libkhepera debug level - Highly recommended for development. */
   // kb_set_debug_level(2);
@@ -183,6 +188,7 @@ int main(int argc, char *argv[]) {
   printf("Connected to ROS2 Client\r\n");
 
   // Main loop
+  /*######################################################################################*/
   while (quitReq==0){
 
     kh4_get_position(&pl,&pr,dsPic);
@@ -194,13 +200,25 @@ int main(int argc, char *argv[]) {
     theta = theta + w;
     printf("Xp: %.3f  Yp %.3f\n", xp, yp);
     if(init_c == 'y'){
-      d_error = (xg-xp)*cos(theta) + (yg-yp)*sin(theta);
+      // d_error = (xg-xp)*cos(theta) + (yg-yp)*sin(theta);
+      d_error = sqrt(pow(xg-xp,2))+(pow(yg-yp,2))*100;
       printf("D: %.3f \n", d_error);
-      if(d_error>0.01){
-        v = (d_error)*10;
+      if(d_error>0.01 || d_error<-0.01){
         alfa = atan2(yg-yp, xg-xp);
-        w0 = 1 * sin(alfa-theta);
-        printf("onboard cmd: %.3f %.3f \n", v, w0);
+        //v = (d_error)*10;
+        //w0 = 1 * sin(alfa-theta);
+
+        oc = alfa - theta;
+        eo = atan2(sin(oc),cos(oc));
+        p = (3.14-abs(eo))/3.14;
+        v = 1.0*d_error*p;
+        if(v>10.0){
+          v = 10.0;
+        }
+        eomas = eo + eomas;
+        w0 = 1.5*sin(eo) + 0.008*eomas*0.003;
+
+        printf("onboard cmd: %.3f %.3f %.3f \n", v, w0, p);
       
       } else {
         v = 0.0;
@@ -244,12 +262,12 @@ int main(int argc, char *argv[]) {
           vel_l = (int)((v-w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
           // kh4_set_speed(vel_l, vel_r,dsPic );
         }
-        if (buffer[0]=='g'){
+        else if (buffer[0]=='g'){
           sscanf(buffer,"%*c %f %f",&xg,&yg);
           init_c = 'y';
           printf("Goal Pose: %.3f %.3f \n", xg, yg);
         }
-        if (buffer[0]=='i'){
+        else if (buffer[0]=='i'){
           sscanf(buffer,"%*c %f %f %f",&xp,&yp,&theta);
           printf("Pose: %.3f %.3f %.3f\n", xp, yp, theta);
         }
@@ -259,9 +277,13 @@ int main(int argc, char *argv[]) {
         }
         else if (buffer[0]=='p'){
           char data_str[256];
+          sprintf(data_str, "%.4f,%.4f,%.4f", xp,yp,theta);
+          write(newsockfd, data_str, strlen(data_str));
+        }
+        else if (buffer[0]=='t'){
+          char data_str[256];
           sprintf(data_str, "%.4f,%.4f", d,theta);
           write(newsockfd, data_str, strlen(data_str));
-          
         }
         else if (strcmp(buffer, "reset_pose") == 0){
           sscanf(buffer,"%*c %d %d",&sl,&sr);
@@ -294,6 +316,8 @@ int main(int argc, char *argv[]) {
       }
     }
   }
+  /*######################################################################################*/
+
   kh4_set_speed(0 ,0 ,dsPic); // stop robot
   kh4_SetMode( kh4RegIdle,dsPic ); // set motors to idle
   kh4_SetRGBLeds(0,0,0,0,0,0,0,0,0,dsPic); // clear rgb leds because consumes energy
