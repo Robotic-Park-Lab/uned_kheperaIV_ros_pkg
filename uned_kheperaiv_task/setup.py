@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'shape_based_formation_control = uned_kheperaiv_task.shape_based_formation_control:main',
-            'distance_based_formation_control = uned_kheperaiv_task.distance_based_formation_control:main'
+            'distance_based_formation_control = uned_kheperaiv_task.distance_based_formation_control:main',
+            'gazebo_driver = uned_kheperaiv_task.gazebo_driver:main'
         ],
     },
 )

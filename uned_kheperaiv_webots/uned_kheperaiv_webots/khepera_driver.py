@@ -293,7 +293,7 @@ class KheperaWebotsDriver:
         self.node.get_logger().debug('DT Pose: X:%f Y:%f' % (pose.position.x,pose.position.y))
         delta = np.array([self.gt_pose.position.x-pose.position.x,self.gt_pose.position.y-pose.position.y,self.gt_pose.position.z-pose.position.z])
         
-        if np.linalg.norm(delta)>0.05:
+        if np.linalg.norm(delta)>0.05 and False:
             self.node.get_logger().debug('DT Pose: X:%f Y:%f' % (pose.position.x,pose.position.y))
             self.robot.getSelf().getField("translation").setSFVec3f([pose.position.x, pose.position.y, 0.015])
             # self.robot.getSelf().getField("rotation").setSFVec3f([0.0, 0.0, 0.0])
@@ -528,22 +528,26 @@ class KheperaWebotsDriver:
         Ki = 0.008
 
         d = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))*100
-        alpha = atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
-        oc = alpha - self.global_yaw
-        eo = atan2(sin(oc),cos(oc))
-        p = (3.14-abs(eo))/3.14
-        V = min(K1*d*p,Vmax)
+        if d<5:
+            V = 0.0
+            w = 0.0
+        else:
+            alpha = atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
+            oc = alpha - self.global_yaw
+            eo = atan2(sin(oc),cos(oc))
+            p = (3.14-abs(eo))/3.14
+            V = min(K1*d*p,Vmax)
 
-        self.eomas = eo+self.eomas
-        w = Kp*sin(eo) + Ki*self.eomas*0.003
+            self.eomas = eo+self.eomas
+            w = Kp*sin(eo) + Ki*self.eomas*0.003
 
         ## Cmd_Vel
         out = Twist()
         out.linear.x = V
         out.angular.z = w
 
-        self.motor_right.setVelocity((V+(w*L*100)/2)/0.067)
-        self.motor_left.setVelocity(( V-(w*L*100)/2)/0.067)
+        self.motor_right.setVelocity((V+(w*L*100)/2))
+        self.motor_left.setVelocity(( V-(w*L*100)/2))
         
 
         return out 
