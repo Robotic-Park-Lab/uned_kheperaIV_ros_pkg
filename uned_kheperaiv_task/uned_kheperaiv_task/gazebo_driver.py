@@ -25,10 +25,10 @@ class Agent():
             self.d = d
         self.pose = Pose()
         self.parent = parent
-        self.sub_pose = self.parent.create_subscription(Pose, self.id + '/local_pose', self.gtpose_callback, 10)
+        self.sub_pose = self.parent.create_subscription(Pose, '/' + self.id + '/local_pose', self.gtpose_callback, 10)
         if not self.parent.digital_twin:
-            self.publisher_data_ = self.parent.create_publisher(Float64, self.parent.id + '/' + self.id + '/data', 10)
-            self.publisher_marker = self.parent.create_publisher(Marker, self.parent.id + '/' + self.id + '/marker', 10)
+            self.publisher_data_ = self.parent.create_publisher(Float64, self.id + '/data', 10)
+            self.publisher_marker = self.parent.create_publisher(Marker, self.id + '/marker', 10)
 
     def str_(self):
         return ('ID: ' + str(self.id) + ' X: ' + str(self.x) +
@@ -183,7 +183,7 @@ class KheperaIVDriver(Node):
                 for rel in self.relationship:
                     aux = rel.split('_')
                     robot = Agent(self, aux[0], d = float(aux[1]))
-                    # self.get_logger().info('CF: %s: Agent: %s \td: %s' % (self.id, aux[0], aux[1]))
+                    self.get_logger().info('Khepera: %s: Agent: %s \td: %s' % (self.id, aux[0], aux[1]))
                     self.agent_list.append(robot)
 
         self.communication = (self.config['communication']['type'] == 'Continuous')
