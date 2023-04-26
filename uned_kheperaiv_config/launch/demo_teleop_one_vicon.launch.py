@@ -6,7 +6,7 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     config_package_dir = get_package_share_directory('uned_kheperaiv_config')
-    config_path = os.path.join(config_package_dir, 'resource', 'khepera_ros2_teleop_vicon.yaml')
+    config_path = os.path.join(config_package_dir, 'resources', 'demo_teleop_khepera04.yaml')
     rviz_config_path = os.path.join(config_package_dir, 'rviz', 'test.rviz')
 
     hostname = '10.196.92.136'
@@ -17,14 +17,16 @@ def generate_launch_description():
         package='uned_kheperaiv_driver',
         executable='kheperaIV_client_driver',
         name='driver',
-        namespace='khepera03',
+        namespace='khepera04',
         output='screen',
         shell=True,
         emulate_tty=True,
         parameters=[
-            {'id': 'khepera03'},
+            {'id': 'khepera04'},
             {'config': config_path}
-        ])
+        ]
+    )
+
     rqt_node = Node(
         package='rqt_gui',
         executable='rqt_gui',
@@ -50,8 +52,8 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        vicon_node,
         robot_node,
         rqt_node,
+        vicon_node,
         rviz_node
     ])
