@@ -122,12 +122,8 @@ class KheperaIVDriver(Node):
     def initialize(self):
         self.get_logger().info('KheperaIVDriver::inicialize() ok.')
         self.tfbr = TransformBroadcaster(self)
-        self.init_pose = False
         self.distance_formation_bool = False
         self.first_goal_pose = False
-        self.pose = Pose()
-        self.pose.position.x = 0.0
-        self.pose.position.y = 0.0
         # Read Params
         self.id = self.get_parameter('id').get_parameter_value().string_value
         config_file = self.get_parameter('config').get_parameter_value().string_value
@@ -136,7 +132,11 @@ class KheperaIVDriver(Node):
             
         config = documents[self.id]
         robot_port = config['port_number']
-        self.get_logger().info('KheperaIVDriver::Port %s.' % robot_port)
+        self.get_logger().info('KheperaIVDriver::Port %s.' % str(robot_port))
+        self.pose = Pose()
+        self.init_pose = False
+        self.pose.position.x = config['pose']['x']
+        self.pose.position.y = config['pose']['y']
         
         robot_ip = config['agent_ip']
          
@@ -181,6 +181,8 @@ class KheperaIVDriver(Node):
                     rel_pose = aux[1].split('/')
                     robot = Agent(self, aux[0], x = float(rel_pose[0]), y = float(rel_pose[1]), z = float(rel_pose[2]))
                     self.agent_list.append(robot)
+
+        self.pose_callback(self.pose)
 
     def cmd_callback(self, msg):
         # Read a command
@@ -344,14 +346,14 @@ class KheperaIVDriver(Node):
             dy += 2 * (error_r * self.pose.position.y)
 
 
-            if dx > 0.32:
-                dx = 0.32
-            if dx < -0.32:
-                dx = -0.32
-            if dy > 0.32:
-                dy = 0.32
-            if dy < -0.32:
-                dy = -0.32
+            if dx > 1.0:
+                dx = 1.0
+            if dx < -1.0:
+                dx = -1.0
+            if dy > 1.0:
+                dy = 1.0
+            if dy < -1.0:
+                dy = -1.0
    
             target_pose.position.x = self.pose.position.x + dx/4
             target_pose.position.y = self.pose.position.y + dy/4
