@@ -14,11 +14,11 @@ find_package(xacro REQUIRED)
 
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/urdf")
 
-foreach (INDEX RANGE 0 8)
+foreach (INDEX RANGE 0 25)
   if (${INDEX} EQUAL 0)
     set(PREFFIX "")
     set(SUFFIX "")
-    set(TOPIC_NS "solo")
+    set(TOPIC_NS "khepera")
   else ()
     if (${INDEX} GREATER 9)
       set(PREFFIX "khepera${INDEX}")
@@ -53,6 +53,12 @@ install(
     meshes
   DESTINATION
     share/${PROJECT_NAME}
+)
+
+install(
+  PROGRAMS
+  src/replace.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()
