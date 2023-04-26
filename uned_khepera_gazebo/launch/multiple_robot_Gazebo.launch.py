@@ -32,7 +32,7 @@ def generate_launch_description():
 
             urdf_path = os.path.join(model_dir, 'urdf', robot['name']+'.urdf')
             pose = robot['pose'].split(', ')
-            robot_node_list.append(Node(package='tello_gazebo', executable='inject_entity.py', output='screen',
+            robot_node_list.append(Node(package='uned_khepera_gazebo', executable='inject_entity.py', output='screen',
                                             arguments=[urdf_path, pose[0], pose[1], '0.05', '0']),
             )
             robot_node_list.append(Node(package='uned_kheperaiv_task', 
