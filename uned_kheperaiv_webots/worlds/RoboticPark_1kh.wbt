@@ -57,7 +57,7 @@ Solid {
           appearance PBRAppearance {
             baseColorMap ImageTexture {
               url [
-                "/home/kiko-hp-omen/RoboticPark/src/uned_interface_ros/Config/models/RoboticLab/files/LogoRoboticPark.png"
+                "/home/kiko/roboticpark_ws/src/uned_kheperaIV_ros_pkg/uned_kheperaiv_webots/worlds/LogoRoboticPark.png"
               ]
             }
             roughness 1
@@ -106,7 +106,7 @@ Solid {
           appearance PBRAppearance {
             baseColorMap ImageTexture {
               url [
-                "/home/kiko-hp-omen/RoboticPark/src/uned_interface_ros/Config/models/RoboticLab/files/UNED_Letras.png"
+                "/home/kiko/roboticpark_ws/src/uned_kheperaIV_ros_pkg/uned_kheperaiv_webots/worlds/UNED_Letras.png"
               ]
             }
             roughness 1

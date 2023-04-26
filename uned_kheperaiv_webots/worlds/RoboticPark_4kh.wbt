@@ -34,7 +34,7 @@ Floor {
   }
 }
 Khepera4 {
-  translation 0.3 0.3 0.0
+  translation 1.5 0.0 0.0
   rotation 0.0 0.0 0.0 1.0
   supervisor TRUE
   turretSlot [
@@ -47,7 +47,7 @@ Khepera4 {
   controller "<extern>"
 }
 Khepera4 {
-  translation 0.0 0.0 0.0
+  translation 0.0 1.5 0.0
   rotation 0.0 0.0 0.0 1.0
   turretSlot [
     GPS {
@@ -59,7 +59,7 @@ Khepera4 {
   controller "<extern>"
 }
 Khepera4 {
-  translation -0.4 0.4 0.0
+  translation -1.5 0.0 0.0
   rotation 0.0 0.0 0.0 1.0
   turretSlot [
     GPS {
@@ -68,6 +68,18 @@ Khepera4 {
     }
   ]
   name "khepera03"
+  controller "<extern>"
+}
+Khepera4 {
+  translation 0.0 -1.5 0.0
+  rotation 0.0 0.0 0.0 1.0
+  turretSlot [
+    GPS {
+    }
+    InertialUnit {
+    }
+  ]
+  name "khepera04"
   controller "<extern>"
 }
 Solid {

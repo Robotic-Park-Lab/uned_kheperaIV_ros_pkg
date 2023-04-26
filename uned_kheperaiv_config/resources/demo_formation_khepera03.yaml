@@ -1,0 +1,40 @@
+khepera03:
+  name: khepera03
+  agent_ip: '192.168.0.19'
+  port_number: 50000
+  init_theta: 0.0
+  pose:
+    x: -1.47
+    y: -0.03
+  control_mode: HighLevel
+  positioning: Intern
+  controller_type: PID_Continuous
+  communication:
+    type: EventBased
+    threshold:
+      type: Constant
+      co: 0.01
+      ai: Null
+  local_pose:
+    enable: True
+    T: 20
+  local_twist:
+    enable: True
+    T: 20
+  data_attitude:
+    enable: True
+    T: 20
+  data_rate:
+    enable: True
+    T: 20
+  data_motor:
+    enable: True
+    T: 20
+  data:
+    enable: True
+    T: 20
+  task:
+    enable: True
+    role: consensus
+    type: distance
+    relationship: 'khepera01_0.8485, khepera02_0.6, khepera04_0.6'

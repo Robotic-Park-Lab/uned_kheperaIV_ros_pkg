@@ -4,57 +4,30 @@ import launch
 from launch_ros.actions import Node
 from launch import LaunchDescription
 from ament_index_python.packages import get_package_share_directory
-from launch.substitutions import EnvironmentVariable, LaunchConfiguration
-from launch.actions import SetEnvironmentVariable
-from webots_ros2_driver.webots_launcher import WebotsLauncher, Ros2SupervisorLauncher
+from launch.substitutions import LaunchConfiguration
+from webots_ros2_driver.webots_launcher import WebotsLauncher
 from webots_ros2_driver.utils import controller_url_prefix
 
 
 def generate_launch_description():
     package_dir = get_package_share_directory('uned_kheperaiv_webots')
+    general_config_dir = get_package_share_directory('uned_kheperaiv_config')
+    config_path = os.path.join(general_config_dir, 'resources', 'demo_teleop_khepera01.yaml')
     robot_description = pathlib.Path(os.path.join(package_dir, 'resource', 'kheperaiv.urdf')).read_text()
     use_sim_time = LaunchConfiguration('use_sim_time', default=True)
     webots = WebotsLauncher(
-        world=os.path.join(package_dir, 'worlds', 'RoboticPark_3kh.wbt')
+        world=os.path.join(package_dir, 'worlds', 'RoboticPark_1kh.wbt')
     )
-
-    ros2_supervisor = Ros2SupervisorLauncher()
-
+    
     robot01_driver = Node(
         package='webots_ros2_driver',
         executable='driver',
         output='screen',
         name='khepera01',
-        additional_env={'WEBOTS_CONTROLLER_URL': controller_url_prefix() + 'khepera01',
-                        'WEBOTS_ROBOT_NAME': 'khepera01'},
-        parameters=[
-            {'robot_description': robot_description,
-             'use_sim_time': use_sim_time,
-             'set_robot_state_publisher': True},
-        ],
-    )
-
-    robot02_driver = Node(
-        package='webots_ros2_driver',
-        executable='driver',
-        output='screen',
-        name='khepera02',
-        additional_env={'WEBOTS_CONTROLLER_URL': controller_url_prefix() + 'khepera02',
-                        'WEBOTS_ROBOT_NAME': 'khepera02'},
-        parameters=[
-            {'robot_description': robot_description,
-             'use_sim_time': use_sim_time,
-             'set_robot_state_publisher': True},
-        ],
-    )
-
-    robot03_driver = Node(
-        package='webots_ros2_driver',
-        executable='driver',
-        output='screen',
-        name='khepera03',
-        additional_env={'WEBOTS_CONTROLLER_URL': controller_url_prefix() + 'khepera03',
-                        'WEBOTS_ROBOT_NAME': 'khepera03'},
+        additional_env={'WEBOTS_ROBOT_NAME': 'khepera01',
+                        'WEBOTS_CONTROLLER_URL': controller_url_prefix() + 'khepera01',
+                        'WEBOTS_ROBOT_CONFIG_FILE': config_path,
+                        'WEBOTS_ROBOT_ROLE': 'virtual'},
         parameters=[
             {'robot_description': robot_description,
              'use_sim_time': use_sim_time,
@@ -82,10 +55,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         webots,
-        ros2_supervisor,
         robot01_driver,
-        robot02_driver,
-        robot03_driver,
         robot_state_publisher,
         rqt_node,
         launch.actions.RegisterEventHandler(

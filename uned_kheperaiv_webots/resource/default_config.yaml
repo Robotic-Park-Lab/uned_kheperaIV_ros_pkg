@@ -1,0 +1,80 @@
+# Default Khepera IV parameters to ros2 node
+khepera01:
+  id: khepera01
+  agent_ip: '192.168.0.21'
+  port_number: 50000
+  init_theta: 0.0
+  pose:
+    x: 0.0
+    y: 0.0
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
+  task: 
+    enable: False
+    role: Null
+    type: Null
+    relationship: Null
+
+khepera02:
+  id: khepera02
+  agent_ip: '192.168.0.22'
+  port_number: 50000
+  init_theta: 0.0
+  pose:
+    x: 0.0
+    y: 0.0
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
+  task: 
+    enable: False
+    role: Null
+    type: Null
+    relationship: Null
+
+khepera03:
+  id: khepera03
+  agent_ip: '192.168.0.19'
+  port_number: 50000
+  init_theta: 0.0
+  pose:
+    x: 0.0
+    y: 0.0
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
+  task: 
+    enable: False
+    role: Null
+    type: Null
+    relationship: Null
+
+khepera04:
+  id: khepera04
+  agent_ip: '192.168.0.20'
+  port_number: 50000
+  init_theta: 0.0
+  pose:
+    x: 0.0
+    y: 0.0
+  communication:
+    type: Continuous
+    threshold:
+      type: Null
+      co: Null
+      ai: Null
+  task: 
+    enable: False
+    role: Null
+    type: Null
+    relationship: Null

@@ -1,27 +1,27 @@
 khepera01:
   name: khepera01
-  config_path: demo_teleop_khepera01.yaml
+  config_path: demo_formation_khepera01.yaml
   description: khepera
   pose: 1.5, -0.00
   type: virtual
 
 khepera02:
   name: khepera02
-  config_path: demo_teleop_khepera02.yaml
+  config_path: demo_formation_khepera02.yaml
   description: khepera
   pose: -0.00, 1.5
   type: virtual
 
 khepera03:
   name: khepera03
-  config_path: demo_teleop_khepera03.yaml
+  config_path: demo_formation_khepera03.yaml
   description: khepera
   pose: -1.5, -0.0
   type: virtual
 
 khepera04:
   name: khepera04
-  config_path: demo_teleop_khepera04.yaml
+  config_path: demo_formation_khepera04.yaml
   description: khepera
   pose: -0.0, -1.5
   type: virtual

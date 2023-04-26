@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<robot name="khepera01">
+    <webots>
+        <device reference="camera" type="Camera">
+            <ros>
+                <alwaysOn>true</alwaysOn>
+                <enabled>true</enabled>
+            </ros>
+        </device>
+        <plugin type="uned_kheperaiv_webots.khepera_driver.KheperaWebotsDriver">
+            <controller>IPC</controller>
+        </plugin>
+    </webots>
+</robot>
