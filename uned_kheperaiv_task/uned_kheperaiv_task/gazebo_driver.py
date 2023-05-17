@@ -325,14 +325,15 @@ class KheperaIVDriver(Node):
     def distance_formation_control(self):
         dx = dy = dz = 0
         for agent in self.agent_list:
-            error_x = self.gt_pose.position.x - agent.pose.position.x
-            error_y = self.gt_pose.position.y - agent.pose.position.y
-            error_z = self.gt_pose.position.z - agent.pose.position.z
-            distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
             if agent.id == 'origin':
-                dx += 2 * (error_x * self.gt_pose.position.x)
-                dy += 2 * (error_y * self.gt_pose.position.y)
+                error_r = pow(agent.d,2) - (pow(self.gt_pose.position.x,2)+pow(self.gt_pose.position.y,2))
+                dx += 2 * (error_r * self.gt_pose.position.x)
+                dy += 2 * (error_r * self.gt_pose.position.y)
             else:
+                error_x = self.gt_pose.position.x - agent.pose.position.x
+                error_y = self.gt_pose.position.y - agent.pose.position.y
+                error_z = self.gt_pose.position.z - agent.pose.position.z
+                distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
                 dx += (pow(agent.d,2) - distance) * error_x
                 dy += (pow(agent.d,2) - distance) * error_y
 
