@@ -16,6 +16,7 @@ class Agent():
         self.id = id
         self.distance = False
         self.parent = parent
+        self.k = 1.0
         if d == None:
             self.x = x
             self.y = y
@@ -32,6 +33,9 @@ class Agent():
             self.pose.position.z = 0.0
         else:
             self.sub_pose_ = self.parent.create_subscription(Pose, '/' + self.id + '/local_pose', self.gtpose_callback, 10)
+        if self.parent.config['task']['Onboard']:
+            self.parent.get_logger().info('TO DO')
+        self.sub_d_ = self.parent.create_subscription(Float64, '/' + self.id + '/d', self.d_callback, 10)
         self.publisher_data_ = self.parent.create_publisher(Float64, self.id + '/data', 10)
         self.publisher_marker_ = self.parent.create_publisher(Marker, self.id + '/marker', 10)
 
@@ -42,8 +46,13 @@ class Agent():
     def str_distance_(self):
         return ('ID: ' + str(self.id) + ' Distance: ' + str(self.d))
 
+    def d_callback(self, msg):
+        self.d = msg.data
+
     def gtpose_callback(self, msg):
         self.pose = msg
+        if self.parent.config['task']['Onboard']:
+            self.parent.get_logger().debug('Update Neighbour pose')
         self.parent.get_logger().debug('Agent: X: %.2f Y: %.2f Z: %.2f' % (msg.position.x, msg.position.y, msg.position.z))
 
         line = Marker()
@@ -174,7 +183,11 @@ class KheperaIVDriver(Node):
             aux = config['task']['relationship']
             self.relationship = aux.split(', ')
             if config['task']['type'] == 'distance':
-                self.timer_task = self.create_timer(0.1, self.task_formation_distance)
+                if self.config['task']['Onboard']:
+                    self.timer_task = self.parent.create_timer(self.config['task']['T']/1000, self.task_formation_info)
+                else:
+                    self.timer_task = self.parent.create_timer(self.config['task']['T']/1000, self.task_formation_distance)
+                
                 for rel in self.relationship:
                     aux = rel.split('_')
                     robot = Agent(self, aux[0], d = float(aux[1]))

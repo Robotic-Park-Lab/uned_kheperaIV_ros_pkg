@@ -36,12 +36,16 @@ class Agent():
         else:
             self.sub_pose = self.parent.node.create_subscription(Pose, self.id + '/local_pose', self.gtpose_callback, 10)
         if not self.parent.digital_twin:
+            self.sub_d_ = self.parent.node.create_subscription(Float64, '/' + self.id + '/d', self.d_callback, 10)
             self.publisher_data_ = self.parent.node.create_publisher(Float64, self.parent.name_value + '/' + self.id + '/data', 10)
             self.publisher_marker = self.parent.node.create_publisher(Marker, self.parent.name_value + '/' + self.id + '/marker', 10)
 
     def str_(self):
         return ('ID: ' + str(self.id) + ' X: ' + str(self.x) +
                 ' Y: ' + str(self.y)+' Z: ' + str(self.z))
+
+    def d_callback(self, msg):
+        self.d = msg.data
 
     def gtpose_callback(self, msg):
         self.pose = msg
@@ -261,7 +265,8 @@ class KheperaWebotsDriver:
     def order_callback(self, msg):
         self.node.get_logger().info('Order: "%s"' % msg.data)
         if msg.data == 'distance_formation_run':
-            self.distance_formation_bool = True
+            if self.config['task']['enable']:
+                self.distance_formation_bool = True
         else:
             self.node.get_logger().error('"%s": Unknown order' % (msg.data))
             
@@ -534,7 +539,7 @@ class KheperaWebotsDriver:
         Ki = 0.008
 
         d = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))*100
-        if d<5:
+        if d<2:
             V = 0.0
             w = 0.0
         else:
