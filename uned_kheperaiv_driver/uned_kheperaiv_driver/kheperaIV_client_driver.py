@@ -10,6 +10,7 @@ from visualization_msgs.msg import Marker
 from math import sqrt, cos, sin, atan2
 from tf2_ros import TransformBroadcaster
 from tf_transformations import euler_from_quaternion
+from builtin_interfaces.msg import Time
 
 class Agent():
     def __init__(self, parent, id, x = None, y = None, z = None, d = None):
@@ -33,7 +34,7 @@ class Agent():
             self.pose.position.z = 0.0
         else:
             self.sub_pose_ = self.parent.create_subscription(Pose, '/' + self.id + '/local_pose', self.gtpose_callback, 10)
-        if self.parent.config['task']['Onboard']:
+        if self.parent.onboard:
             self.parent.get_logger().info('TO DO')
         self.sub_d_ = self.parent.create_subscription(Float64, '/' + self.id + '/d', self.d_callback, 10)
         self.publisher_data_ = self.parent.create_publisher(Float64, self.id + '/data', 10)
@@ -51,7 +52,7 @@ class Agent():
 
     def gtpose_callback(self, msg):
         self.pose = msg
-        if self.parent.config['task']['Onboard']:
+        if self.parent.onboard:
             self.parent.get_logger().debug('Update Neighbour pose')
         self.parent.get_logger().debug('Agent: X: %.2f Y: %.2f Z: %.2f' % (msg.position.x, msg.position.y, msg.position.z))
 
@@ -123,21 +124,23 @@ class KheperaIVDriver(Node):
         self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 1)
         self.create_subscription(String, '/swarm/status', self.order_callback, 10)
         self.create_subscription(String, '/swarm/order', self.order_callback, 1)
+        self.create_subscription(Time, '/swarm/time', self.time_callback, 1)
 
         self.initialize()
 
         # Variables
         self.tfbr = TransformBroadcaster(self)
 
-        self.timer_task = self.create_timer(0.1, self.get_pose)
+        self.timer_task = self.create_timer(1.0, self.get_pose)
         # self.timer_sensor = self.create_timer(0.5, self.get_data)
-        # self.timer_iterate = self.create_timer(1.0, self.iterate)
+        # self.timer_iterate = self.create_timer(0.2, self.iterate)
 
     def initialize(self):
         self.get_logger().info('KheperaIVDriver::inicialize() ok.')
         self.tfbr = TransformBroadcaster(self)
         self.distance_formation_bool = False
         self.first_goal_pose = False
+        self.time = Time()
         # Read Params
         self.id = self.get_parameter('id').get_parameter_value().string_value
         config_file = self.get_parameter('config').get_parameter_value().string_value
@@ -176,17 +179,19 @@ class KheperaIVDriver(Node):
         # Connect to the server
         self.sock.connect(server_address)
 
+        self.task = config['task']['enable']
         # Formation Init
-        if config['task']['enable']:
+        if self.task:
             self.get_logger().info('Task %s' % config['task']['type'])
             self.agent_list = list()
             aux = config['task']['relationship']
             self.relationship = aux.split(', ')
+            self.onboard = config['task']['Onboard']
             if config['task']['type'] == 'distance':
-                if self.config['task']['Onboard']:
-                    self.timer_task = self.parent.create_timer(self.config['task']['T']/1000, self.task_formation_info)
+                if self.onboard:
+                    self.timer_task = self.create_timer(config['task']['T']/1000, self.task_formation_info)
                 else:
-                    self.timer_task = self.parent.create_timer(self.config['task']['T']/1000, self.task_formation_distance)
+                    self.timer_task = self.create_timer(config['task']['T']/1000, self.task_formation_distance)
                 
                 for rel in self.relationship:
                     aux = rel.split('_')
@@ -217,10 +222,17 @@ class KheperaIVDriver(Node):
         command = "d " + str(round(msg.linear.x,3)) + " " + str(round(msg.angular.z,3))
         self.sock.sendall(bytes(command, 'utf-8'))
 
+    def time_callback(self,msg):
+        self.time = msg.sec + (msg.nanosec/1000000000)
+        
+
     def order_callback(self, msg):
-        self.get_logger().info('KheperaIVDriver::New Order')
-        if msg.data == 'distance_formation_run':
+        
+        if msg.data == 'distance_formation_run' and self.task:
+            self.get_logger().info('Start Formation')
             self.distance_formation_bool = True
+        if msg.data == 'formation_stop':
+            self.distance_formation_bool = False
 
     def pose_callback(self, msg):
         if abs(msg.position.x)<2 and abs(msg.position.y)<2:
@@ -232,11 +244,8 @@ class KheperaIVDriver(Node):
                 self.sock.sendall(bytes(command, 'utf-8'))
             else:
                 if not(np.isnan(msg.position.x) or np.isnan(msg.position.y) or np.isnan(msg.position.z) or np.isnan(msg.orientation.x) or np.isnan(msg.orientation.y) or np.isnan(msg.orientation.z)  or np.isnan(msg.orientation.w)) and not (msg.position.x == 0.0 and msg.position.y == 0.0 and msg.position.z == 0.0):
-                    delta = np.array([self.pose.position.x-msg.position.x,self.pose.position.y-msg.position.y,self.pose.position.z-msg.position.z])
-                    
-                    if (np.linalg.norm(delta)>self.threshold and np.linalg.norm(delta)<0.2) or self.distance_formation_bool or self.communication:
-                        if self.distance_formation_bool:
-                            self.distance_formation_bool = False
+                    delta = sqrt((pow(self.pose.position.x-msg.position.x,2)+pow(self.pose.position.y-msg.position.y,2)))
+                    if (delta>self.threshold and delta<0.1) or True: #self.communication:
                         self.pose = msg
                         self.get_logger().debug('Delta %.3f' % np.linalg.norm(delta))
                         self.get_logger().debug('New Local pose')
@@ -270,9 +279,10 @@ class KheperaIVDriver(Node):
         if not self.first_goal_pose:
             self.first_goal_pose = True
         self.get_logger().debug('New Goal pose: %.2f, %.2f' % (msg.position.x, msg.position.y))
-        command = "g " + str(round(msg.position.x,3)) + " " + str(round(msg.position.y,3))
-        self.sock.sendall(bytes(command, 'utf-8'))
         self.goal_pose = msg
+        # command = "g " + str(round(msg.position.x,3)) + " " + str(round(msg.position.y,3))
+        # self.sock.sendall(bytes(command, 'utf-8'))
+        # 
     
     def get_pose(self):
         if self.init_pose:
@@ -297,26 +307,34 @@ class KheperaIVDriver(Node):
                     self.pose.orientation.z = np.sin(self.theta/2)
                     self.pose.orientation.w = np.cos(self.theta/2)
                     '''
-                    self.pose.position.x = float(value[0])
-                    self.pose.position.y = float(value[1])
-                    self.pose.orientation.x = 0.0
-                    self.pose.orientation.y = 0.0
-                    self.pose.orientation.z = np.sin(float(value[2])/2)
-                    self.pose.orientation.w = np.cos(float(value[2])/2)
-                    self.get_logger().debug('Xp: %.3f, Yp: %.3f' % (self.pose.position.x, self.pose.position.y))
-                    self.pub_pose_.publish(self.pose)
-                    t_base = TransformStamped()
-                    t_base.header.stamp = self.get_clock().now().to_msg()
-                    t_base.header.frame_id = 'map'
-                    t_base.child_frame_id = self.id+'/base_link'
-                    t_base.transform.translation.x = self.pose.position.x
-                    t_base.transform.translation.y = self.pose.position.y
-                    t_base.transform.translation.z = 0.05
-                    t_base.transform.rotation.x = 0.0
-                    t_base.transform.rotation.y = 0.0
-                    t_base.transform.rotation.z = self.pose.orientation.z
-                    t_base.transform.rotation.w = self.pose.orientation.w 
-                    self.tfbr.sendTransform(t_base)
+                    delta = sqrt((pow(self.pose.position.x-float(value[0]),2)+pow(self.pose.position.y-float(value[1]),2)))
+                    if self.communication or delta>self.threshold:
+                        self.pose.position.x = float(value[0])
+                        self.pose.position.y = float(value[1])
+                        self.pose.orientation.x = 0.0
+                        self.pose.orientation.y = 0.0
+                        self.pose.orientation.z = np.sin(float(value[2])/2)
+                        self.pose.orientation.w = np.cos(float(value[2])/2)
+                        self.get_logger().debug('Xp: %.3f, Yp: %.3f' % (self.pose.position.x, self.pose.position.y))
+                        self.pub_pose_.publish(self.pose)
+                        t_base = TransformStamped()
+                        t_base.header.stamp = self.get_clock().now().to_msg()
+                        t_base.header.frame_id = 'map'
+                        t_base.child_frame_id = self.id+'/base_link'
+                        t_base.transform.translation.x = self.pose.position.x
+                        t_base.transform.translation.y = self.pose.position.y
+                        t_base.transform.translation.z = 0.05
+                        t_base.transform.rotation.x = 0.0
+                        t_base.transform.rotation.y = 0.0
+                        t_base.transform.rotation.z = self.pose.orientation.z
+                        t_base.transform.rotation.w = self.pose.orientation.w 
+                        self.tfbr.sendTransform(t_base)
+
+                    command = "g " + str(round(self.goal_pose.position.x,2)) + " " + str(round(self.goal_pose.position.y,2))
+                    self.sock.sendall(bytes(command, 'utf-8'))
+                    # time = self.get_clock().now().to_msg()
+                    # delay = (time.sec + (time.nanosec/1000000000)) - self.time
+                    # self.get_logger().info('Delay: %.4f s' % (delay))
                 except:
                     pass
             except:
@@ -335,8 +353,10 @@ class KheperaIVDriver(Node):
             pass
 
     def iterate(self):
-        command = "i " + str(round(self.pose.position.x,3)) + " " + str(round(self.pose.position.y,3))+ " " + str(round(self.theta ,3))
+        command = "g " + str(round(self.goal_pose.position.x,3)) + " " + str(round(self.goal_pose.position.y,3))
         self.sock.sendall(bytes(command, 'utf-8'))
+        # command = "i " + str(round(self.pose.position.x,3)) + " " + str(round(self.pose.position.y,3))+ " " + str(round(self.theta ,3))
+        # self.sock.sendall(bytes(command, 'utf-8'))
 
     ###############
     #    Tasks    #
@@ -364,14 +384,14 @@ class KheperaIVDriver(Node):
                 agent.publisher_data_.publish(msg_data)
 
 
-            if dx > 1.0:
-                dx = 1.0
-            if dx < -1.0:
-                dx = -1.0
-            if dy > 1.0:
-                dy = 1.0
-            if dy < -1.0:
-                dy = -1.0
+            if dx > 4.0:
+                dx = 4.0
+            if dx < -4.0:
+                dx = -4.0
+            if dy > 4.0:
+                dy = 4.0
+            if dy < -4.0:
+                dy = -4.0
    
             target_pose.position.x = self.pose.position.x + dx/4
             target_pose.position.y = self.pose.position.y + dy/4
@@ -383,6 +403,9 @@ class KheperaIVDriver(Node):
             # self.parent.get_logger().debug('Distance: %.4f eX: %.2f eY: %.2f eZ: %.2f' % (sqrt(distance), error_x, error_y, error_z))
             # self.parent.get_logger().debug('Delta: %.4f X: %.2f Y: %.2f Z: %.2f' % (delta, dx, dy, dz))
             # self.parent.get_logger().debug('Target: X: %.2f Y: %.2f Z: %.2f' % (target_pose.position.x, target_pose.position.y, target_pose.position.z))
+
+    def task_formation_info(self):
+        print('TO-DO')
 
     def task_formation_pose(self):
         if self.ready:

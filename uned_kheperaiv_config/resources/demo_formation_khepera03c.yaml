@@ -4,13 +4,13 @@ khepera03:
   port_number: 50000
   init_theta: 0.0
   pose:
-    x: -1.53
-    y: -0.0
+    x: -1.47
+    y: -0.03
   control_mode: HighLevel
   positioning: Intern
   controller_type: PID_Continuous
   communication:
-    type: Continuous
+    type: EventBased
     threshold:
       type: Constant
       co: 0.01
@@ -35,6 +35,8 @@ khepera03:
     T: 20
   task:
     enable: False
-    role: Null
-    type: Null
-    relationship: Null
+    T: 100
+    Onboard: False
+    role: consensus
+    type: distance
+    relationship: 'khepera02_0.7071, khepera04_0.7071, origin_0.5'

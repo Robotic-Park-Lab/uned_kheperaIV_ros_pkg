@@ -6,7 +6,7 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     config_package_dir = get_package_share_directory('uned_kheperaiv_config')
-    config_path = os.path.join(config_package_dir, 'resources', 'demo_teleop_khepera04.yaml')
+    config_path = os.path.join(config_package_dir, 'resources', 'demo_teleop_khepera03.yaml')
     rviz_config_path = os.path.join(config_package_dir, 'rviz', 'test.rviz')
 
     robot_node = Node(
@@ -18,7 +18,7 @@ def generate_launch_description():
         shell=True,
         emulate_tty=True,
         parameters=[
-            {'id': 'khepera04'},
+            {'id': 'khepera03'},
             {'config': config_path}
         ]
     )
