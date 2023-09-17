@@ -6,9 +6,9 @@ from rclpy.time import Time
 import yaml
 
 from std_msgs.msg import String, Bool, Float64
-from geometry_msgs.msg import Twist, Pose, Point
+from geometry_msgs.msg import Twist, Pose, Point, PoseStamped
 from sensor_msgs.msg import LaserScan, Range
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
 from visualization_msgs.msg import Marker
 
 from math import atan2, cos, sin, sqrt, radians, pi
@@ -34,7 +34,7 @@ class Agent():
             self.pose.position.y = 0.0
             self.pose.position.z = 0.0
         else:
-            self.sub_pose = self.parent.node.create_subscription(Pose, self.id + '/local_pose', self.gtpose_callback, 10)
+            self.sub_pose = self.parent.node.create_subscription(PoseStamped, self.id + '/local_pose', self.gtpose_callback, 10)
         if not self.parent.digital_twin:
             self.sub_d_ = self.parent.node.create_subscription(Float64, '/' + self.id + '/d', self.d_callback, 10)
             self.publisher_data_ = self.parent.node.create_publisher(Float64, self.parent.name_value + '/' + self.id + '/data', 10)
@@ -48,7 +48,7 @@ class Agent():
         self.d = msg.data
 
     def gtpose_callback(self, msg):
-        self.pose = msg
+        self.pose = msg.pose
         if not self.parent.digital_twin:
             line = Marker()
             p0 = Point()
@@ -201,14 +201,14 @@ class KheperaWebotsDriver:
         self.angular_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 0.0, 0.0, 0.1, 0.1)
 
         ## ROS2 Environment
-        self.name_value = os.environ['WEBOTS_ROBOT_NAME']
+        self.name_value = properties.get("name")
         rclpy.init(args=None)
         self.node = rclpy.create_node(self.name_value+'_driver')
-        self.digital_twin = os.environ['WEBOTS_ROBOT_ROLE'] == 'digital_twin'
+        self.digital_twin = properties.get("type") == 'digital_twin'
 
         # Subscription
         self.node.create_subscription(Twist, self.name_value+'/cmd_vel', self.cmd_vel_callback, 1)
-        self.node.create_subscription(Pose, self.name_value+'/goal_pose', self.goal_pose_callback, 1)
+        self.node.create_subscription(PoseStamped, self.name_value+'/goal_pose', self.goal_pose_callback, 1)
         self.node.create_subscription(String, self.name_value+'/order', self.order_callback, 1)
         self.node.create_subscription(String, 'swarm/order', self.order_callback, 1)
 
@@ -216,34 +216,41 @@ class KheperaWebotsDriver:
         self.laser_publisher = self.node.create_publisher(LaserScan, self.name_value+'/scan', 10)
         self.range_publisher = self.node.create_publisher(Range, self.name_value+'/range0', 10)
         if self.digital_twin:
-            self.node.create_subscription(Pose, self.name_value+'/local_pose', self.dt_pose_callback, 1)
+            self.node.create_subscription(PoseStamped, self.name_value+'/local_pose', self.dt_pose_callback, 1)
             pose_name = self.name_value+'/dt_pose'
         else:
             pose_name = self.name_value+'/local_pose'
-        self.pose_publisher = self.node.create_publisher(Pose, pose_name, 10)
+        self.pose_publisher = self.node.create_publisher(PoseStamped, pose_name, 10)
+        self.path_publisher = self.node.create_publisher(Path, self.name_value+'/path', 10)
         
-        ## Intialize Controllers
-        if properties.get("controller") == 'IPC':
-            self.controller_IPC = True
-            self.eomas = 3.14
-            self.node.get_logger().info('%s::IPC Controller' % (str(self.name_value)))
-        else:
-            self.controller_IPC = False
-            self.node.get_logger().info('%s::Force Field Controller' % (str(self.name_value)))
         self.continuous = False
         self.tfbr = TransformBroadcaster(self.node)
-
+        self.config_file = properties.get("config_file")
+        self.controller_IPC = False
+        self.path = Path()
+        self.path.header.frame_id = "map"
         self.initialize()
 
     def initialize(self):
         self.node.get_logger().info('Webots_Node::inicialize() ok. %s' % (str(self.name_value)))
         # Read Params
-        config_file = os.environ['WEBOTS_ROBOT_CONFIG_FILE']
-
-        with open(config_file, 'r') as file:
+        with open(self.config_file, 'r') as file:
             documents = yaml.safe_load(file)
         self.config = documents[self.name_value]
 
+        ## Intialize Controllers
+        if self.config['controller']['enable']:
+            self.controller = True
+            if self.config['controller']['type'] == 'IPC':
+                self.controller_IPC = True
+                self.eomas = 3.14
+                self.node.get_logger().info('%s::IPC Controller' % (str(self.name_value)))
+            else:
+                self.controller_IPC = False
+                self.node.get_logger().info('%s::Force Field Controller' % (str(self.name_value)))
+        else:
+            self.controller = False
+            self.node.get_logger().info('%s::Open Loop' % (str(self.name_value)))
         # Init relationship
         if self.config['task']['enable']:
             self.node.get_logger().info('Task %s' % self.config['task']['type'])
@@ -254,13 +261,15 @@ class KheperaWebotsDriver:
                 for rel in self.relationship:
                     aux = rel.split('_')
                     robot = Agent(self, aux[0], d = float(aux[1]))
-                    # self.node.get_logger().info('CF: %s: Agent: %s \td: %s' % (self.name_value, aux[0], aux[1]))
+                    self.node.get_logger().info('CF: %s: Agent: %s \td: %s' % (self.name_value, aux[0], aux[1]))
                     self.agent_list.append(robot)
         self.communication = (self.config['communication']['type'] == 'Continuous')
         if not self.communication:
             self.threshold = self.config['communication']['threshold']['co']
         else:
             self.threshold = 0.001
+
+        self.timer = self.node.create_timer(0.1, self.publish_laserscan_data)
 
     def order_callback(self, msg):
         self.node.get_logger().info('Order: "%s"' % msg.data)
@@ -290,7 +299,7 @@ class KheperaWebotsDriver:
  
         self.msg_laser = LaserScan()
         self.msg_laser.header.stamp = Time(seconds=self.robot.getTime()).to_msg()
-        self.msg_laser.header.frame_id = self.name_value
+        self.msg_laser.header.frame_id = self.name_value+'/base_link'
         self.msg_laser.range_min = 0.25
         self.msg_laser.range_max = max_range
         self.msg_laser.ranges = [left_range, frontleft_range, front_range, frontright_range, right_range]
@@ -300,19 +309,19 @@ class KheperaWebotsDriver:
         self.laser_publisher.publish(self.msg_laser)
 
     def dt_pose_callback(self, pose):
-        self.node.get_logger().debug('DT Pose: X:%f Y:%f' % (pose.position.x,pose.position.y))
-        delta = np.array([self.gt_pose.position.x-pose.position.x,self.gt_pose.position.y-pose.position.y,self.gt_pose.position.z-pose.position.z])
+        self.node.get_logger().debug('DT Pose: X:%f Y:%f' % (pose.pose.position.x,pose.pose.position.y))
+        delta = np.array([self.gt_pose.position.x-pose.pose.position.x,self.gt_pose.position.y-pose.pose.position.y,self.gt_pose.position.z-pose.pose.position.z])
         
         if np.linalg.norm(delta)>0.05 and False:
-            self.node.get_logger().debug('DT Pose: X:%f Y:%f' % (pose.position.x,pose.position.y))
-            self.robot.getSelf().getField("translation").setSFVec3f([pose.position.x, pose.position.y, 0.015])
+            self.node.get_logger().debug('DT Pose: X:%f Y:%f' % (pose.pose.position.x,pose.pose.position.y))
+            self.robot.getSelf().getField("translation").setSFVec3f([pose.pose.position.x, pose.pose.position.y, 0.015])
             # self.robot.getSelf().getField("rotation").setSFVec3f([0.0, 0.0, 0.0])
 
     def cmd_vel_callback(self, twist):
         self.target_twist = twist
 
     def goal_pose_callback(self, pose):
-        self.target_pose = pose
+        self.target_pose = pose.pose
         self.node.get_logger().debug('Target: X:%f Y:%f' % (self.target_pose.position.x,self.target_pose.position.y))
 
     def step(self):
@@ -355,15 +364,23 @@ class KheperaWebotsDriver:
         self.tfbr.sendTransform(t_base)
         
         if not self.init_pose:
-
             self.target_pose.position.x = self.global_x
             self.target_pose.position.y= self.global_y
             self.last_pose = self.gt_pose
             self.init_pose = True
         
         delta = np.array([self.gt_pose.position.x-self.last_pose.position.x,self.gt_pose.position.y-self.last_pose.position.y,self.gt_pose.position.z-self.last_pose.position.z])
-        if np.linalg.norm(delta) > 0.01 or True:
-            self.pose_publisher.publish(self.gt_pose)
+        if np.linalg.norm(delta) > 0.01 or self.communication:
+            # if len(self.path.poses)>10:
+            #     self.path.poses = np.delete(self.path.poses, 0)
+            PoseStamp = PoseStamped()
+            PoseStamp.header.frame_id = "map"
+            PoseStamp.pose = self.gt_pose
+            self.path.poses.append(PoseStamp)
+
+            self.path_publisher.publish(self.path)
+            
+            self.pose_publisher.publish(PoseStamp)
             self.last_pose = self.gt_pose
         
         ## Formation Control
@@ -372,18 +389,21 @@ class KheperaWebotsDriver:
             # self.distance_formation_bool = False
 
         # Position Controller
-        if self.controller_IPC:
-            self.target_twist = self.IPC_controller()
-            self.node.get_logger().debug('IPC: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
+        if self.controller:
+            if self.controller_IPC:
+                self.target_twist = self.IPC_controller()
+                self.node.get_logger().debug('IPC: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
+            else:
+                # Force Field
+                distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
+                angle_error = -self.global_yaw+atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
+                self.target_twist = self.forces_field(dt, distance_error, angle_error)
+                
+                self.node.get_logger().debug('Force Field: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
+                self.node.get_logger().debug('Distance:%f Angle:%f' % (distance_error.real,angle_error))
         else:
-            # Force Field
-            distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
-            angle_error = -self.global_yaw+atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
-            self.target_twist = self.forces_field(dt, distance_error, angle_error)
-            
-            self.node.get_logger().debug('Force Field: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
-            self.node.get_logger().debug('Distance:%f Angle:%f' % (distance_error.real,angle_error))
-        
+            self.motor_right.setVelocity((self.target_twist.linear.x/2+(self.target_twist.angular.z*0.10540*100)/2))
+            self.motor_left.setVelocity(( self.target_twist.linear.x/2-(self.target_twist.angular.z*0.10540*100)/2))
         # PID
         # self.linear_controller.error[0] = distance_error
         # self.angular_controller.error[0] = angle_error
@@ -539,18 +559,24 @@ class KheperaWebotsDriver:
         Ki = 0.008
 
         d = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))*100
-        if d<2:
+        if d<1:
             V = 0.0
-            w = 0.0
+            angles = tf_transformations.euler_from_quaternion((self.target_pose.orientation.x, self.target_pose.orientation.y, self.target_pose.orientation.z, self.target_pose.orientation.w))
+            oc = angles[2] - self.global_yaw
+            if abs(oc)>0.01:
+                eo = atan2(sin(oc),cos(oc))
+                self.eomas = eo+self.eomas
+                w = Kp*sin(eo) + Ki*self.eomas*0.003
+            else:
+                w = 0.0
         else:
             alpha = atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
             oc = alpha - self.global_yaw
             eo = atan2(sin(oc),cos(oc))
             p = (3.14-abs(eo))/3.14
-            V = min(K1*d*p,Vmax)
-
             self.eomas = eo+self.eomas
             w = Kp*sin(eo) + Ki*self.eomas*0.003
+            V = min(K1*d*p,Vmax)
 
         ## Cmd_Vel
         out = Twist()

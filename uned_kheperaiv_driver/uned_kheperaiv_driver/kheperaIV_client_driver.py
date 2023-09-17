@@ -2,6 +2,7 @@ import rclpy
 import socket
 import numpy as np
 import yaml
+import time
 
 from rclpy.node import Node
 from std_msgs.msg import String, UInt16, UInt16MultiArray, Float64, Float64MultiArray
@@ -15,9 +16,10 @@ from builtin_interfaces.msg import Time
 class Agent():
     def __init__(self, parent, id, x = None, y = None, z = None, d = None):
         self.id = id
+        self.idn = len(parent.agent_list)
         self.distance = False
         self.parent = parent
-        self.k = 1.0
+        self.k = 2.0
         if d == None:
             self.x = x
             self.y = y
@@ -32,12 +34,16 @@ class Agent():
             self.pose.position.x = 0.0
             self.pose.position.y = 0.0
             self.pose.position.z = 0.0
+            self.k = 4.0
         else:
             self.sub_pose_ = self.parent.create_subscription(Pose, '/' + self.id + '/local_pose', self.gtpose_callback, 10)
         if self.parent.onboard:
-            self.parent.get_logger().info('TO DO')
+            command = "n " + str(self.idn) + " " + str(self.d) + " " + str(self.k)
+            self.parent.sock.sendall(bytes(command, 'utf-8'))
+            self.parent.get_logger().info('New Agent: %s' % command)
         self.sub_d_ = self.parent.create_subscription(Float64, '/' + self.id + '/d', self.d_callback, 10)
         self.publisher_data_ = self.parent.create_publisher(Float64, self.id + '/data', 10)
+        self.publisher_iae_ = self.parent.create_publisher(Float64, self.id + '/iae', 10)
         self.publisher_marker_ = self.parent.create_publisher(Marker, self.id + '/marker', 10)
 
     def str_(self):
@@ -52,10 +58,13 @@ class Agent():
 
     def gtpose_callback(self, msg):
         self.pose = msg
-        if self.parent.onboard:
+        self.neighbour_update = True
+        if self.parent.onboard and False:
             self.parent.get_logger().debug('Update Neighbour pose')
+            command = "m " + str(self.idn) + " " + str(round(self.pose.position.x,3)) + " " + str(round(self.pose.position.y,3)) + " " + str(round(self.pose.position.z,3))
+            self.parent.sock.sendall(bytes(command, 'utf-8'))
         self.parent.get_logger().debug('Agent: X: %.2f Y: %.2f Z: %.2f' % (msg.position.x, msg.position.y, msg.position.z))
-
+        
         line = Marker()
         p0 = Point()
         p0.x = self.parent.pose.position.x
@@ -131,15 +140,16 @@ class KheperaIVDriver(Node):
         # Variables
         self.tfbr = TransformBroadcaster(self)
 
-        self.timer_task = self.create_timer(1.0, self.get_pose)
+        # self.timer_task = self.create_timer(0.1, self.get_pose)
         # self.timer_sensor = self.create_timer(0.5, self.get_data)
-        # self.timer_iterate = self.create_timer(0.2, self.iterate)
+        # self.timer_iterate = self.create_timer(0.1, self.iterate)
 
     def initialize(self):
         self.get_logger().info('KheperaIVDriver::inicialize() ok.')
         self.tfbr = TransformBroadcaster(self)
         self.distance_formation_bool = False
         self.first_goal_pose = False
+        self.neighbour_update = False
         self.time = Time()
         # Read Params
         self.id = self.get_parameter('id').get_parameter_value().string_value
@@ -154,6 +164,10 @@ class KheperaIVDriver(Node):
         self.init_pose = False
         self.pose.position.x = config['pose']['x']
         self.pose.position.y = config['pose']['y']
+        if config['local_pose']['enable']:
+            self.timer_iterate = self.create_timer(config['local_pose']['T']/1000, self.iterate)
+        else:
+            self.timer_iterate = self.create_timer(0.1, self.iterate)
         
         robot_ip = config['agent_ip']
          
@@ -192,13 +206,14 @@ class KheperaIVDriver(Node):
                     self.timer_task = self.create_timer(config['task']['T']/1000, self.task_formation_info)
                 else:
                     self.timer_task = self.create_timer(config['task']['T']/1000, self.task_formation_distance)
-                
+
                 for rel in self.relationship:
                     aux = rel.split('_')
                     robot = Agent(self, aux[0], d = float(aux[1]))
                     self.agent_list.append(robot)
+                    time.sleep(0.1)
             if config['task']['type'] == 'relative_pose':
-                self.timer_task = self.create_timer(0.1, self.task_formation_pose)
+                self.timer_task = self.create_timer(0.2, self.task_formation_pose)
                 for rel in self.relationship:
                     aux = rel.split('_')
                     rel_pose = aux[1].split('/')
@@ -225,14 +240,17 @@ class KheperaIVDriver(Node):
     def time_callback(self,msg):
         self.time = msg.sec + (msg.nanosec/1000000000)
         
-
     def order_callback(self, msg):
         
         if msg.data == 'distance_formation_run' and self.task:
             self.get_logger().info('Start Formation')
             self.distance_formation_bool = True
+            if self.onboard:
+                self.sock.sendall(bytes("s ", 'utf-8'))
         if msg.data == 'formation_stop':
             self.distance_formation_bool = False
+            if self.onboard:
+                self.sock.sendall(bytes("r ", 'utf-8'))
 
     def pose_callback(self, msg):
         if abs(msg.position.x)<2 and abs(msg.position.y)<2:
@@ -280,9 +298,8 @@ class KheperaIVDriver(Node):
             self.first_goal_pose = True
         self.get_logger().debug('New Goal pose: %.2f, %.2f' % (msg.position.x, msg.position.y))
         self.goal_pose = msg
-        # command = "g " + str(round(msg.position.x,3)) + " " + str(round(msg.position.y,3))
-        # self.sock.sendall(bytes(command, 'utf-8'))
-        # 
+        command = "g " + str(round(msg.position.x,3)) + " " + str(round(msg.position.y,3))
+        self.sock.sendall(bytes(command, 'utf-8'))
     
     def get_pose(self):
         if self.init_pose:
@@ -308,7 +325,7 @@ class KheperaIVDriver(Node):
                     self.pose.orientation.w = np.cos(self.theta/2)
                     '''
                     delta = sqrt((pow(self.pose.position.x-float(value[0]),2)+pow(self.pose.position.y-float(value[1]),2)))
-                    if self.communication or delta>self.threshold:
+                    if (self.communication or delta>self.threshold) and delta<0.1:
                         self.pose.position.x = float(value[0])
                         self.pose.position.y = float(value[1])
                         self.pose.orientation.x = 0.0
@@ -330,16 +347,22 @@ class KheperaIVDriver(Node):
                         t_base.transform.rotation.w = self.pose.orientation.w 
                         self.tfbr.sendTransform(t_base)
 
-                    command = "g " + str(round(self.goal_pose.position.x,2)) + " " + str(round(self.goal_pose.position.y,2))
-                    self.sock.sendall(bytes(command, 'utf-8'))
-                    # time = self.get_clock().now().to_msg()
-                    # delay = (time.sec + (time.nanosec/1000000000)) - self.time
-                    # self.get_logger().info('Delay: %.4f s' % (delay))
+                    
                 except:
                     pass
             except:
                 self.get_logger().error('Fail get_pose()')
+                self.pub_pose_.publish(self.pose)
                 pass
+
+            
+            if self.neighbour_update and self.onboard:
+                self.neighbour_update = False
+                for agent in self.agent_list:
+                    command = "m " + str(agent.idn) + " " + str(round(agent.pose.position.x,3)) + " " + str(round(agent.pose.position.y,3)) + " " + str(round(agent.pose.position.z,3))
+                    self.parent.sock.sendall(bytes(command, 'utf-8'))
+                    time.sleep(0.05)
+            
         
     def get_data(self):
         command = 'get_data'
@@ -353,8 +376,12 @@ class KheperaIVDriver(Node):
             pass
 
     def iterate(self):
-        command = "g " + str(round(self.goal_pose.position.x,3)) + " " + str(round(self.goal_pose.position.y,3))
-        self.sock.sendall(bytes(command, 'utf-8'))
+        self.get_pose()
+        # self.task_formation_distance()
+        # time = self.get_clock().now().to_msg()
+        # delay = (time.sec + (time.nanosec/1000000000)) - self.time
+        # self.get_logger().info('Delay: %.4f s' % (delay))
+        
         # command = "i " + str(round(self.pose.position.x,3)) + " " + str(round(self.pose.position.y,3))+ " " + str(round(self.theta ,3))
         # self.sock.sendall(bytes(command, 'utf-8'))
 
@@ -367,15 +394,16 @@ class KheperaIVDriver(Node):
             dx = dy = 0
             target_pose = Pose()
             for agent in self.agent_list:
-                # self.parent.get_logger().info('Agent: %s' % agent.id)
-                error_x = self.pose.position.x - agent.pose.position.x
-                error_y = self.pose.position.y - agent.pose.position.y
-                error_z = self.pose.position.z - agent.pose.position.z
-                distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
                 if agent.id == 'origin':
-                    dx += 2 * (error_x * self.pose.position.x)
-                    dy += 2 * (error_y * self.pose.position.y)
+                    distance = sqrt((pow(self.pose.position.x,2)+pow(self.pose.position.y,2)+pow(self.pose.position.z,2)))
+                    error_r = pow(agent.d,2) - (pow(self.pose.position.x,2)+pow(self.pose.position.y,2)+pow(self.pose.position.z,2))
+                    dx += 2 * (error_r * self.pose.position.x)
+                    dy += 2 * (error_r * self.pose.position.y)
                 else:
+                    error_x = self.pose.position.x - agent.pose.position.x
+                    error_y = self.pose.position.y - agent.pose.position.y
+                    error_z = self.pose.position.z - agent.pose.position.z
+                    distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
                     dx += (pow(agent.d,2) - distance) * error_x
                     dy += (pow(agent.d,2) - distance) * error_y
 
@@ -398,20 +426,30 @@ class KheperaIVDriver(Node):
             
             # self.parent.get_logger().debug('Formation: X: %.2f->%.2f Y: %.2f->%.2f Z: %.2f->%.2f' % (self.pose.position.x, target_pose.position.x, self.pose.position.y, target_pose.position.y, self.pose.position.z, target_pose.position.z)) 
 
-            self.goalpose_callback(target_pose)
+            self.goal_pose = target_pose
+            self.goalpose_callback(self.goal_pose)
 
             # self.parent.get_logger().debug('Distance: %.4f eX: %.2f eY: %.2f eZ: %.2f' % (sqrt(distance), error_x, error_y, error_z))
             # self.parent.get_logger().debug('Delta: %.4f X: %.2f Y: %.2f Z: %.2f' % (delta, dx, dy, dz))
             # self.parent.get_logger().debug('Target: X: %.2f Y: %.2f Z: %.2f' % (target_pose.position.x, target_pose.position.y, target_pose.position.z))
 
     def task_formation_info(self):
-        print('TO-DO')
+        if self.distance_formation_bool:
+            msg_iae = Float64()
+            msg_iae.data = 0.0
+            for agent in self.agent_list:
+                if agent.id == 'origin':
+                    distance = sqrt((pow(self.pose.position.x,2)+pow(self.pose.position.y,2)+pow(self.pose.position.z,2)))
+                else:
+                    distance = sqrt(pow(self.pose.position.x-agent.pose.position.x,2)+pow(self.pose.position.y-agent.pose.position.y,2)+pow(self.pose.position.z-agent.pose.position.z,2))
+                msg_data = Float64()
+                msg_data.data = abs(agent.d - distance)
+                agent.publisher_data_.publish(msg_data)
 
     def task_formation_pose(self):
         if self.ready:
             # TO-DO
             dx = dy = dz = 0
-
 
     def position_controller(self):
         Kp = 10
