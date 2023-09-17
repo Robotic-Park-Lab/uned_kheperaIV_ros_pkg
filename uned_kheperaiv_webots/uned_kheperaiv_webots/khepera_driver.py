@@ -263,6 +263,7 @@ class KheperaWebotsDriver:
                     robot = Agent(self, aux[0], d = float(aux[1]))
                     self.node.get_logger().info('CF: %s: Agent: %s \td: %s' % (self.name_value, aux[0], aux[1]))
                     self.agent_list.append(robot)
+        self.path_enable = self.config['local_pose']['path']
         self.communication = (self.config['communication']['type'] == 'Continuous')
         if not self.communication:
             self.threshold = self.config['communication']['threshold']['co']
@@ -302,7 +303,7 @@ class KheperaWebotsDriver:
         self.msg_laser.header.frame_id = self.name_value+'/base_link'
         self.msg_laser.range_min = 0.25
         self.msg_laser.range_max = max_range
-        self.msg_laser.ranges = [left_range, frontleft_range, front_range, frontright_range, right_range]
+        self.msg_laser.ranges = [right_range, frontright_range, front_range, frontleft_range, left_range]
         self.msg_laser.angle_min = -0.5 * pi
         self.msg_laser.angle_max =  0.5 * pi
         self.msg_laser.angle_increment = pi/4
@@ -365,23 +366,36 @@ class KheperaWebotsDriver:
         
         if not self.init_pose:
             self.target_pose.position.x = self.global_x
-            self.target_pose.position.y= self.global_y
+            self.target_pose.position.x = self.gt_pose.position.x
+            self.target_pose.position.y = self.gt_pose.position.y
+            self.target_pose.position.z = self.gt_pose.position.z
+            self.target_pose.orientation.x = self.gt_pose.orientation.x
+            self.target_pose.orientation.y = self.gt_pose.orientation.y
+            self.target_pose.orientation.z = self.gt_pose.orientation.z
+            self.target_pose.orientation.w = self.gt_pose.orientation.w
             self.last_pose = self.gt_pose
             self.init_pose = True
         
         delta = np.array([self.gt_pose.position.x-self.last_pose.position.x,self.gt_pose.position.y-self.last_pose.position.y,self.gt_pose.position.z-self.last_pose.position.z])
         if np.linalg.norm(delta) > 0.01 or self.communication:
-            # if len(self.path.poses)>10:
-            #     self.path.poses = np.delete(self.path.poses, 0)
             PoseStamp = PoseStamped()
             PoseStamp.header.frame_id = "map"
-            PoseStamp.pose = self.gt_pose
-            self.path.poses.append(PoseStamp)
-
-            self.path_publisher.publish(self.path)
-            
+            PoseStamp.pose.position.x = self.gt_pose.position.x
+            PoseStamp.pose.position.y = self.gt_pose.position.y
+            PoseStamp.pose.position.z = self.gt_pose.position.z
+            PoseStamp.pose.orientation.x = self.gt_pose.orientation.x
+            PoseStamp.pose.orientation.y = self.gt_pose.orientation.y
+            PoseStamp.pose.orientation.z = self.gt_pose.orientation.z
+            PoseStamp.pose.orientation.w = self.gt_pose.orientation.w
+            PoseStamp.header.stamp = self.node.get_clock().now().to_msg()
+            if self.path_enable:
+                self.path.header.stamp = self.node.get_clock().now().to_msg()
+                self.path.poses.append(PoseStamp)
+                self.path_publisher.publish(self.path)
             self.pose_publisher.publish(PoseStamp)
-            self.last_pose = self.gt_pose
+            self.last_pose.position.x = self.gt_pose.position.x
+            self.last_pose.position.y = self.gt_pose.position.y
+            self.last_pose.position.z = self.gt_pose.position.z
         
         ## Formation Control
         if self.distance_formation_bool:
@@ -421,7 +435,6 @@ class KheperaWebotsDriver:
         self.node.get_logger().debug('Pose3D: X:%f Y:%f yaw:%f' % (self.global_x,self.global_y,self.global_yaw))
         self.node.get_logger().debug('PID cmd: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
         
-
     def distance_formation_control(self):
         dx = dy = dz = 0
         for agent in self.agent_list:
