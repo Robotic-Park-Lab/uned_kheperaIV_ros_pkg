@@ -1,18 +1,14 @@
-from rosgraph_msgs.msg import Clock
 import rclpy
-import os
-from rclpy.node import Node
 from rclpy.time import Time
 import yaml
 
-from std_msgs.msg import String, Bool, Float64
+from std_msgs.msg import String, Float64
 from geometry_msgs.msg import Twist, Pose, Point, PoseStamped
 from sensor_msgs.msg import LaserScan, Range
-from nav_msgs.msg import Odometry, Path
+from nav_msgs.msg import Path
 from visualization_msgs.msg import Marker
 
 from math import atan2, cos, sin, sqrt, radians, pi
-import sys
 import tf_transformations
 import numpy as np
 from tf2_ros import TransformBroadcaster
@@ -33,7 +29,10 @@ class Agent():
             self.pose.position.x = 0.0
             self.pose.position.y = 0.0
             self.pose.position.z = 0.0
+            self.k = 2.0
+            self.sub_pose = self.parent.node.create_subscription(PoseStamped, self.id + '/local_pose', self.gtpose_callback, 10)
         else:
+            self.k = 1.0
             self.sub_pose = self.parent.node.create_subscription(PoseStamped, self.id + '/local_pose', self.gtpose_callback, 10)
         if not self.parent.digital_twin:
             self.sub_d_ = self.parent.node.create_subscription(Float64, '/' + self.id + '/d', self.d_callback, 10)
@@ -229,6 +228,7 @@ class KheperaWebotsDriver:
         self.controller_IPC = False
         self.path = Path()
         self.path.header.frame_id = "map"
+        self.t_event = self.robot.getTime()
         self.initialize()
 
     def initialize(self):
@@ -277,6 +277,7 @@ class KheperaWebotsDriver:
         if msg.data == 'distance_formation_run':
             if self.config['task']['enable']:
                 self.distance_formation_bool = True
+
         else:
             self.node.get_logger().error('"%s": Unknown order' % (msg.data))
             
@@ -377,7 +378,9 @@ class KheperaWebotsDriver:
             self.init_pose = True
         
         delta = np.array([self.gt_pose.position.x-self.last_pose.position.x,self.gt_pose.position.y-self.last_pose.position.y,self.gt_pose.position.z-self.last_pose.position.z])
-        if np.linalg.norm(delta) > 0.01 or self.communication:
+        dt = self.robot.getTime() - self.t_event
+        if np.linalg.norm(delta) > 0.01 or self.communication or dt>2.0:
+            self.t_event = self.robot.getTime()
             PoseStamp = PoseStamped()
             PoseStamp.header.frame_id = "map"
             PoseStamp.pose.position.x = self.gt_pose.position.x
@@ -438,18 +441,13 @@ class KheperaWebotsDriver:
     def distance_formation_control(self):
         dx = dy = dz = 0
         for agent in self.agent_list:
-            if agent.id == 'origin':
-                error_r = pow(agent.d,2) - (pow(self.gt_pose.position.x,2)+pow(self.gt_pose.position.y,2))
-                dx += 2 * (error_r * self.gt_pose.position.x)
-                dy += 2 * (error_r * self.gt_pose.position.y)
-            else:
-                error_x = self.gt_pose.position.x - agent.pose.position.x
-                error_y = self.gt_pose.position.y - agent.pose.position.y
-                error_z = self.gt_pose.position.z - agent.pose.position.z
-                distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
-                dx += (pow(agent.d,2) - distance) * error_x
-                dy += (pow(agent.d,2) - distance) * error_y
-
+            error_x = self.gt_pose.position.x - agent.pose.position.x
+            error_y = self.gt_pose.position.y - agent.pose.position.y
+            error_z = self.gt_pose.position.z - agent.pose.position.z
+            distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
+            dx += agent.k * (pow(agent.d,2) - distance) * error_x
+            dy += agent.k * (pow(agent.d,2) - distance) * error_y
+            
             if not self.digital_twin:
                 msg_data = Float64()
                 msg_data.data = abs(agent.d - sqrt(distance))
