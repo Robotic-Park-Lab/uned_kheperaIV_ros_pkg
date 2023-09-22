@@ -192,7 +192,9 @@ class KheperaWebotsDriver:
         self.target_pose = Pose()
         self.target_pose.position.x = 0.0
         self.target_pose.position.y= 0.0
+        self.formation_control_bool = False
         self.distance_formation_bool = False
+        self.pose_formation_bool = False
 
         # Position
         self.linear_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 1.0, -1.0, 0.05, 0.01)
@@ -241,7 +243,7 @@ class KheperaWebotsDriver:
         ## Intialize Controllers
         if self.config['controller']['enable']:
             self.controller = True
-            if self.config['controller']['type'] == 'IPC':
+            if self.config['controller']['type'] == 'ipc':
                 self.controller_IPC = True
                 self.eomas = 3.14
                 self.node.get_logger().info('%s::IPC Controller' % (str(self.name_value)))
@@ -258,10 +260,18 @@ class KheperaWebotsDriver:
             aux = self.config['task']['relationship']
             self.relationship = aux.split(', ')
             if self.config['task']['type'] == 'distance':
+                self.distance_formation_bool = True
                 for rel in self.relationship:
                     aux = rel.split('_')
                     robot = Agent(self, aux[0], d = float(aux[1]))
                     self.node.get_logger().info('CF: %s: Agent: %s \td: %s' % (self.name_value, aux[0], aux[1]))
+                    self.agent_list.append(robot)
+            elif self.config['task']['type'] == 'pose':
+                self.pose_formation_bool = True
+                for rel in self.relationship:
+                    aux = rel.split('_')
+                    robot = Agent(self, aux[0], x = float(aux[1]), y = float(aux[2]), z = float(aux[3]))
+                    self.node.get_logger().info('CF: %s: Agent: %s \tx: %s \ty: %s \tz: %s' % (self.name_value, aux[0], aux[1], aux[2], aux[3]))
                     self.agent_list.append(robot)
         self.path_enable = self.config['local_pose']['path']
         self.communication = (self.config['communication']['type'] == 'Continuous')
@@ -276,7 +286,7 @@ class KheperaWebotsDriver:
         self.node.get_logger().info('Order: "%s"' % msg.data)
         if msg.data == 'distance_formation_run':
             if self.config['task']['enable']:
-                self.distance_formation_bool = True
+                self.formation_control_bool = True
 
         else:
             self.node.get_logger().error('"%s": Unknown order' % (msg.data))
@@ -401,9 +411,12 @@ class KheperaWebotsDriver:
             self.last_pose.position.z = self.gt_pose.position.z
         
         ## Formation Control
-        if self.distance_formation_bool:
-            self.distance_formation_control()
-            # self.distance_formation_bool = False
+        if self.formation_control_bool:
+            if self.distance_formation_bool:
+                self.distance_formation_control()
+                # self.distance_formation_bool = False
+            elif self.pose_formation_bool:
+                self.pose_formation_control()
 
         # Position Controller
         if self.controller:
@@ -454,14 +467,25 @@ class KheperaWebotsDriver:
                 agent.publisher_data_.publish(msg_data)
                 self.node.get_logger().debug('Agent %s: D: %.2f dx: %.2f dy: %.2f dz: %.2f ' % (agent.id, msg_data.data, dx, dy, dz)) 
 
-        if dx > 0.32:
-            dx = 0.32
-        if dx < -0.32:
-            dx = -0.32
-        if dy > 0.32:
-            dy = 0.32
-        if dy < -0.32:
-            dy = -0.32
+        self.target_pose.position.x = self.gt_pose.position.x + dx/4
+        self.target_pose.position.y = self.gt_pose.position.y + dy/4
+
+        self.node.get_logger().debug('Formation: X: %.2f->%.2f Y: %.2f->%.2f Z: %.2f->%.2f' % (self.gt_pose.position.x, self.target_pose.position.x, self.gt_pose.position.y, self.target_pose.position.y, self.gt_pose.position.z, self.target_pose.position.z)) 
+
+    def pose_formation_control(self):
+        dx = dy = dz = 0
+        for agent in self.agent_list:
+            error_x = self.gt_pose.position.x - agent.pose.position.x
+            error_y = self.gt_pose.position.y - agent.pose.position.y
+            
+            dx += agent.k * (pow(agent.x,2) - pow(error_x,2))
+            dy += agent.k * (pow(agent.y,2) - pow(agent.y - error_y,2))
+            
+            if not self.digital_twin:
+                msg_data = Float64()
+                msg_data.data = sqrt(pow(agent.x-error_x,2)+pow(error_y,2))
+                agent.publisher_data_.publish(msg_data)
+                self.node.get_logger().debug('Agent %s: D: %.2f dx: %.2f dy: %.2f dz: %.2f ' % (agent.id, msg_data.data, dx, dy, dz)) 
 
         self.target_pose.position.x = self.gt_pose.position.x + dx/4
         self.target_pose.position.y = self.gt_pose.position.y + dy/4
