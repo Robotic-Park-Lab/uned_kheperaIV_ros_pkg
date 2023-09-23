@@ -2,7 +2,7 @@ import rclpy
 from rclpy.time import Time
 import yaml
 
-from std_msgs.msg import String, Float64
+from std_msgs.msg import String, Float64, Bool
 from geometry_msgs.msg import Twist, Pose, Point, PoseStamped
 from sensor_msgs.msg import LaserScan, Range
 from nav_msgs.msg import Path
@@ -18,10 +18,12 @@ class Agent():
     def __init__(self, parent, id, x = None, y = None, z = None, d = None):
         self.id = id
         if d == None:
+            self.distance_bool = False
             self.x = x
             self.y = y
             self.z = z
         else:
+            self.distance_bool = True
             self.d = d
         self.pose = Pose()
         self.parent = parent
@@ -37,7 +39,7 @@ class Agent():
         if not self.parent.digital_twin:
             self.sub_d_ = self.parent.node.create_subscription(Float64, '/' + self.id + '/d', self.d_callback, 10)
             self.publisher_data_ = self.parent.node.create_publisher(Float64, self.parent.name_value + '/' + self.id + '/data', 10)
-            self.publisher_marker = self.parent.node.create_publisher(Marker, self.parent.name_value + '/' + self.id + '/marker', 10)
+            self.publisher_marker_ = self.parent.node.create_publisher(Marker, self.parent.name_value + '/' + self.id + '/marker', 10)
 
     def str_(self):
         return ('ID: ' + str(self.id) + ' X: ' + str(self.x) +
@@ -72,19 +74,26 @@ class Agent():
             line.scale.y = 0.01
             line.scale.z = 0.01
 
-            if abs(distance - self.d) > 0.05:
+            if self.distance_bool:
+                distance = sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2)+pow(p0.z-p1.z,2))
+                e = abs(distance - self.d)
+            else:
+                e = sqrt(pow(self.x-(p0.x-p1.x),2)+pow(self.y-(p0.y-p1.y),2)+pow(self.z-(p0.z-p1.z),2))
+
+            if e > 0.05:
                 line.color.r = 1.0
             else:
-                if abs(distance - self.d) > 0.025:
+                if e > 0.025:
                     line.color.r = 1.0
                     line.color.g = 0.5
                 else:
                     line.color.g = 1.0
+
             line.color.a = 1.0
             line.points.append(p1)
             line.points.append(p0)
 
-            self.publisher_marker.publish(line)
+            self.publisher_marker_.publish(line)
 
 
 class PIDController():
@@ -128,18 +137,31 @@ class PIDController():
         
         return out
 
-    def eval_threshold(self, error):
+    def eval_threshold(self, signal, ref):
+        # Noise (Cn)
+        mean = signal/len(self.noise)
+        for i in range(0,len(self.noise)-2):
+            self.noise[i] = self.noise[i+1]
+            mean += self.noise[i]/len(self.noise)
+        
+        self.noise[len(self.noise)-1] = signal
+
+        trigger_cn = 0.0
+        for i in range(0,len(self.noise)-1):
+            if abs(self.noise[i]-mean) > trigger_cn:
+                trigger_cn = self.noise[i]-mean
+        trigger_cn = 0.0
         # a
-        a = self.trigger_ai * abs(error)
+        a = self.trigger_ai * abs(signal - ref)
         if a > self.trigger_ai:
             a = self.trigger_ai
 
         # Threshold
-        self.th = self.trigger_co + a
-        self.inc = abs(abs(error) - self.trigger_last_signal) 
+        self.th = self.trigger_co + a + trigger_cn
+        self.inc = abs(abs(ref-signal) - self.trigger_last_signal) 
         # Delta Error
         if (self.inc >= abs(self.th)):
-            self.trigger_last_signal = abs(error)
+            self.trigger_last_signal = abs(ref-signal)
             return True
 
         return False
@@ -189,12 +211,11 @@ class KheperaWebotsDriver:
         ## Intialize Variables
         self.past_time = self.robot.getTime()
         self.gt_pose = Pose()
-        self.target_pose = Pose()
-        self.target_pose.position.x = 0.0
-        self.target_pose.position.y= 0.0
-        self.formation_control_bool = False
-        self.distance_formation_bool = False
-        self.pose_formation_bool = False
+        self.target_pose = PoseStamped()
+        self.target_pose.header.frame_id = "map"
+        self.target_pose.pose.position.z = 0.0
+        self.target_pose.pose.position.x = 0.0
+        self.target_pose.pose.position.y= 0.0
 
         # Position
         self.linear_controller = PIDController(1.0, 0.0, 0.0, 0.0, 100, 1.0, -1.0, 0.05, 0.01)
@@ -209,7 +230,7 @@ class KheperaWebotsDriver:
 
         # Subscription
         self.node.create_subscription(Twist, self.name_value+'/cmd_vel', self.cmd_vel_callback, 1)
-        self.node.create_subscription(PoseStamped, self.name_value+'/goal_pose', self.goal_pose_callback, 1)
+        self.sub_goalpose = self.node.create_subscription(PoseStamped, self.name_value+'/goal_pose', self.goal_pose_callback, 1)
         self.node.create_subscription(String, self.name_value+'/order', self.order_callback, 1)
         self.node.create_subscription(String, 'swarm/order', self.order_callback, 1)
 
@@ -227,10 +248,15 @@ class KheperaWebotsDriver:
         self.continuous = False
         self.tfbr = TransformBroadcaster(self.node)
         self.config_file = properties.get("config_file")
-        self.controller_IPC = False
+        self.position_controller_IPC = False
         self.path = Path()
         self.path.header.frame_id = "map"
         self.t_event = self.robot.getTime()
+        self.continuous = False
+        self.trigger_ai = 0.01
+        self.trigger_co = 0.1
+        self.trigger_last_signal = 0.0
+        self.formation_bool = False
         self.initialize()
 
     def initialize(self):
@@ -242,37 +268,68 @@ class KheperaWebotsDriver:
 
         ## Intialize Controllers
         if self.config['controller']['enable']:
-            self.controller = True
+            self.position_controller = True
             if self.config['controller']['type'] == 'ipc':
-                self.controller_IPC = True
+                self.position_controller_IPC = True
                 self.eomas = 3.14
                 self.node.get_logger().info('%s::IPC Controller' % (str(self.name_value)))
             else:
-                self.controller_IPC = False
+                self.position_controller_IPC = False
                 self.node.get_logger().info('%s::Force Field Controller' % (str(self.name_value)))
         else:
-            self.controller = False
+            self.position_controller = False
             self.node.get_logger().info('%s::Open Loop' % (str(self.name_value)))
-        # Init relationship
+            
+        # Set Formation
         if self.config['task']['enable']:
-            self.node.get_logger().info('Task %s' % self.config['task']['type'])
+            self.node.destroy_subscription(self.sub_goalpose)
+            self.publisher_goalpose = self.node.create_publisher(PoseStamped, self.name_value + '/goal_pose', 10)
+        
+        if self.config['task']['enable'] and not self.config['task']['Onboard']:
+            self.node.get_logger().info('Task %s by %s' % (self.config['task']['type'], self.config['task']['role']))
+            self.controller = self.config['task']['controller']
+            self.controller_type = self.controller['type']
+            self.k = self.controller['gain']
+            self.ul = self.controller['upperLimit']
+            self.ll = self.controller['lowerLimit']
+            self.continuous = self.controller['protocol'] == 'Continuous'
+            self.event_x = self.node.create_publisher(Bool, self.name_value + '/event_x', 10)
+            self.event_y = self.node.create_publisher(Bool, self.name_value + '/event_y', 10)
+            self.event_z = self.node.create_publisher(Bool, self.name_value + '/event_z', 10)
+
+            if not self.continuous:
+                self.trigger_ai = self.controller['threshold']['ai']
+                self.trigger_co = self.controller['threshold']['co']
+
+            if self.controller_type == 'pid':
+                self.formation_x_controller = PIDController(self.k, 0.0, 0.0, 0.0, 100, self.ul, self.ll, self.trigger_ai, self.trigger_co)
+                self.formation_y_controller = PIDController(self.k, 0.0, 0.0, 0.0, 100, self.ul, self.ll, self.trigger_ai, self.trigger_co)
+                self.formation_z_controller = PIDController(self.k, 0.0, 0.0, 0.0, 100, self.ul, self.ll, self.trigger_ai, self.trigger_co)
+
             self.agent_list = list()
             aux = self.config['task']['relationship']
             self.relationship = aux.split(', ')
             if self.config['task']['type'] == 'distance':
-                self.distance_formation_bool = True
+                if self.controller_type == 'gradient':
+                    self.node.create_timer(self.controller['period'], self.distance_gradient_controller)
+                elif self.controller_type == 'pid':
+                    self.node.create_timer(self.controller['period'], self.distance_pid_controller)
                 for rel in self.relationship:
                     aux = rel.split('_')
                     robot = Agent(self, aux[0], d = float(aux[1]))
-                    self.node.get_logger().info('CF: %s: Agent: %s \td: %s' % (self.name_value, aux[0], aux[1]))
+                    self.node.get_logger().info('Agent: %s: Neighbour: %s \td: %s' % (self.name_value, aux[0], aux[1]))
                     self.agent_list.append(robot)
             elif self.config['task']['type'] == 'pose':
-                self.pose_formation_bool = True
+                if self.controller_type == 'gradient':
+                    self.node.create_timer(self.controller['period'], self.pose_gradient_controller)
+                elif self.controller_type == 'pid':
+                    self.node.create_timer(self.controller['period'], self.pose_pid_controller)
                 for rel in self.relationship:
                     aux = rel.split('_')
                     robot = Agent(self, aux[0], x = float(aux[1]), y = float(aux[2]), z = float(aux[3]))
-                    self.node.get_logger().info('CF: %s: Agent: %s \tx: %s \ty: %s \tz: %s' % (self.name_value, aux[0], aux[1], aux[2], aux[3]))
+                    self.node.get_logger().info('Agent: %s. Neighbour %s ::: x: %s \ty: %s \tz: %s' % (self.name_value, aux[0], aux[1], aux[2], aux[3]))
                     self.agent_list.append(robot)
+        
         self.path_enable = self.config['local_pose']['path']
         self.communication = (self.config['communication']['type'] == 'Continuous')
         if not self.communication:
@@ -284,10 +341,11 @@ class KheperaWebotsDriver:
 
     def order_callback(self, msg):
         self.node.get_logger().info('Order: "%s"' % msg.data)
-        if msg.data == 'distance_formation_run':
+        if msg.data == 'formation_run':
             if self.config['task']['enable']:
-                self.formation_control_bool = True
-
+                self.formation_bool = True
+        elif msg.data == 'formation_stop':
+            self.formation_bool = False
         else:
             self.node.get_logger().error('"%s": Unknown order' % (msg.data))
             
@@ -333,8 +391,8 @@ class KheperaWebotsDriver:
         self.target_twist = twist
 
     def goal_pose_callback(self, pose):
-        self.target_pose = pose.pose
-        self.node.get_logger().debug('Target: X:%f Y:%f' % (self.target_pose.position.x,self.target_pose.position.y))
+        self.target_pose = pose
+        self.node.get_logger().debug('Target: X:%f Y:%f' % (self.target_pose.pose.position.x,self.target_pose.pose.position.y))
 
     def step(self):
         rclpy.spin_once(self.node, timeout_sec=0)
@@ -376,14 +434,14 @@ class KheperaWebotsDriver:
         self.tfbr.sendTransform(t_base)
         
         if not self.init_pose:
-            self.target_pose.position.x = self.global_x
-            self.target_pose.position.x = self.gt_pose.position.x
-            self.target_pose.position.y = self.gt_pose.position.y
-            self.target_pose.position.z = self.gt_pose.position.z
-            self.target_pose.orientation.x = self.gt_pose.orientation.x
-            self.target_pose.orientation.y = self.gt_pose.orientation.y
-            self.target_pose.orientation.z = self.gt_pose.orientation.z
-            self.target_pose.orientation.w = self.gt_pose.orientation.w
+            self.target_pose.pose.position.x = self.global_x
+            self.target_pose.pose.position.x = self.gt_pose.position.x
+            self.target_pose.pose.position.y = self.gt_pose.position.y
+            self.target_pose.pose.position.z = self.gt_pose.position.z
+            self.target_pose.pose.orientation.x = self.gt_pose.orientation.x
+            self.target_pose.pose.orientation.y = self.gt_pose.orientation.y
+            self.target_pose.pose.orientation.z = self.gt_pose.orientation.z
+            self.target_pose.pose.orientation.w = self.gt_pose.orientation.w
             self.last_pose = self.gt_pose
             self.init_pose = True
         
@@ -411,22 +469,22 @@ class KheperaWebotsDriver:
             self.last_pose.position.z = self.gt_pose.position.z
         
         ## Formation Control
-        if self.formation_control_bool:
-            if self.distance_formation_bool:
-                self.distance_formation_control()
+        # if self.formation_control_bool:
+        #     if self.distance_formation_bool:
+        #         self.distance_formation_control()
                 # self.distance_formation_bool = False
-            elif self.pose_formation_bool:
-                self.pose_formation_control()
+        #     elif self.pose_formation_bool:
+        #         self.pose_formation_control()
 
         # Position Controller
-        if self.controller:
-            if self.controller_IPC:
+        if self.position_controller:
+            if self.position_controller_IPC:
                 self.target_twist = self.IPC_controller()
                 self.node.get_logger().debug('IPC: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
             else:
                 # Force Field
-                distance_error = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))
-                angle_error = -self.global_yaw+atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
+                distance_error = sqrt(pow(self.target_pose.pose.position.x-self.global_x,2)+pow(self.target_pose.pose.position.y-self.global_y,2))
+                angle_error = -self.global_yaw+atan2(self.target_pose.pose.position.y-self.global_y,self.target_pose.pose.position.x-self.global_x)
                 self.target_twist = self.forces_field(dt, distance_error, angle_error)
                 
                 self.node.get_logger().debug('Force Field: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
@@ -451,54 +509,294 @@ class KheperaWebotsDriver:
         self.node.get_logger().debug('Pose3D: X:%f Y:%f yaw:%f' % (self.global_x,self.global_y,self.global_yaw))
         self.node.get_logger().debug('PID cmd: vX:%f vZ:%f' % (self.target_twist.linear.x,self.target_twist.angular.z))
         
-    def distance_formation_control(self):
-        dx = dy = dz = 0
-        for agent in self.agent_list:
-            error_x = self.gt_pose.position.x - agent.pose.position.x
-            error_y = self.gt_pose.position.y - agent.pose.position.y
-            error_z = self.gt_pose.position.z - agent.pose.position.z
-            distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
-            dx += agent.k * (pow(agent.d,2) - distance) * error_x
-            dy += agent.k * (pow(agent.d,2) - distance) * error_y
+    def distance_gradient_controller(self):
+        if self.formation_bool:
+            dx = dy = dz = 0
+            for agent in self.agent_list:
+                error_x = self.gt_pose.position.x - agent.pose.position.x
+                error_y = self.gt_pose.position.y - agent.pose.position.y
+                error_z = self.gt_pose.position.z - agent.pose.position.z
+                distance = pow(error_x,2)+pow(error_y,2)+pow(error_z,2)
+                d = sqrt(distance)
+                dx += self.k * agent.k * (pow(agent.d,2) - distance) * error_x/d
+                dy += self.k * agent.k * (pow(agent.d,2) - distance) * error_y/d
+                dz += self.k * agent.k * (pow(agent.d,2) - distance) * error_z/d
+                
+                if not self.digital_twin:
+                    msg_data = Float64()
+                    msg_data.data = abs(agent.d - d)
+                    agent.publisher_data_.publish(msg_data)
+                    self.node.get_logger().debug('Agent %s: D: %.2f dx: %.2f dy: %.2f dz: %.2f ' % (agent.id, msg_data.data, dx, dy, dz)) 
             
-            if not self.digital_twin:
+            if not self.continuous:
+                delta=sqrt(pow(dx,2)+pow(dy,2)+pow(dz,2))
+                if not self.eval_threshold(0.0, delta):
+                    return
+            
+            msg = Bool()
+            msg.data = True
+            self.event_x.publish(msg)
+
+            if dx > self.ul:
+                dx = self.ul
+            if dx < self.ll:
+                dx = self.ll
+            if dy > self.ul:
+                dy = self.ul
+            if dy < self.ll:
+                dy = self.ll
+
+            self.target_pose.pose.position.x = self.gt_pose.position.x + dx
+            self.target_pose.pose.position.y = self.gt_pose.position.y + dy
+            self.target_pose.pose.position.z = self.gt_pose.position.z
+        
+            delta=sqrt(pow(dx,2)+pow(dy,2)+pow(dz,2))
+            angles = tf_transformations.euler_from_quaternion((self.gt_pose.orientation.x, self.gt_pose.orientation.y, self.gt_pose.orientation.z, self.gt_pose.orientation.w))
+                    
+            if delta<0.05:
+                roll = angles[0]
+                pitch = angles[1]
+                yaw = angles[2]
+            else:
+                h = sqrt(pow(dx,2)+pow(dy,2))
+                roll = 0.0
+                pitch = -atan2(dz,h)
+                yaw = atan2(dy,dx)
+
+            q = tf_transformations.quaternion_from_euler(roll, pitch, yaw)
+            self.target_pose.pose.orientation.x = q[0]
+            self.target_pose.pose.orientation.y = q[1]
+            self.target_pose.pose.orientation.z = q[2]
+            self.target_pose.pose.orientation.w = q[3]
+            self.target_pose.header.stamp = self.node.get_clock().now().to_msg()
+            self.publisher_goalpose.publish(self.target_pose)
+
+    def distance_pid_controller(self):
+        if self.formation_bool:
+            ex = ey = ez = 0
+            for agent in self.agent_list:
+                error_x = self.gt_pose.position.x - agent.pose.position.x
+                error_y = self.gt_pose.position.y - agent.pose.position.y
+                error_z = self.gt_pose.position.z - agent.pose.position.z
+                distance = sqrt(pow(error_x,2)+pow(error_y,2)+pow(error_z,2))
+                e = agent.d - distance
+                ex += agent.k * e * (error_x/distance)
+                ey += agent.k * e * (error_y/distance)
+                ez += agent.k * e * (error_z/distance)
+                
+                if not self.digital_twin:
+                    msg_data = Float64()
+                    msg_data.data = e
+                    agent.publisher_data_.publish(msg_data)
+
+            aux = self.node.get_clock().now().to_msg()
+            time = aux.sec + aux.nanosec*1e-9
+                
+            if not (self.formation_x_controller.eval_threshold(0.0, ex) or self.formation_y_controller.eval_threshold(0.0, ey) or self.formation_z_controller.eval_threshold(0.0, ez) or self.continuous):
+                return
+            
+            msg = Bool()
+            msg.data = True
+            self.event_x.publish(msg)
+            # X Controller
+            self.formation_x_controller.error[0] = ex
+            dtx = time - self.formation_x_controller.past_time
+            dx = self.formation_x_controller.update(dtx)
+            self.formation_x_controller.past_time = time
+
+            # Y Controller
+            self.formation_y_controller.error[0] = ey
+            dty = time - self.formation_y_controller.past_time
+            dy = self.formation_y_controller.update(dty)
+            self.formation_y_controller.past_time = time
+
+            # Z Controller
+            self.formation_z_controller.error[0] = ez
+            dtz = time - self.formation_z_controller.past_time
+            dz = self.formation_z_controller.update(dtz)
+            self.formation_z_controller.past_time = time
+
+            self.target_pose.pose.position.x = self.gt_pose.position.x + dx
+            self.target_pose.pose.position.y = self.gt_pose.position.y + dy
+            self.target_pose.pose.position.z = self.gt_pose.position.z + dz
+
+            delta=sqrt(pow(dx,2)+pow(dy,2)+pow(dz,2))
+            angles = tf_transformations.euler_from_quaternion((self.gt_pose.orientation.x, self.gt_pose.orientation.y, self.gt_pose.orientation.z, self.gt_pose.orientation.w))
+                    
+            if delta<0.05:
+                roll = angles[0]
+                pitch = angles[1]
+                yaw = angles[2]
+            else:
+                h = sqrt(pow(dx,2)+pow(dy,2))
+                roll = 0.0
+                pitch = -atan2(dz,h)
+                yaw = atan2(dy,dx)
+
+            q = tf_transformations.quaternion_from_euler(roll, pitch, yaw)
+            self.target_pose.pose.orientation.x = q[0]
+            self.target_pose.pose.orientation.y = q[1]
+            self.target_pose.pose.orientation.z = q[2]
+            self.target_pose.pose.orientation.w = q[3]
+            self.target_pose.header.stamp = self.node.get_clock().now().to_msg()
+            self.publisher_goalpose.publish(self.target_pose)
+
+    def pose_gradient_controller(self):
+        if self.formation_bool:
+            dx = dy = dz = 0
+            for agent in self.agent_list:
+                error_x = self.gt_pose.position.x - agent.pose.position.x
+                error_y = self.gt_pose.position.y - agent.pose.position.y
+                distance = pow(error_x,2)+pow(error_y,2)
+                d = sqrt(distance)
+                dx += self.k * agent.k * (pow(agent.x,2) - pow(error_x,2)) * error_x/d
+                dy += self.k * agent.k * (pow(agent.y,2) - pow(error_y,2)) * error_y/d
+                        
                 msg_data = Float64()
-                msg_data.data = abs(agent.d - sqrt(distance))
+                msg_data.data = sqrt(pow(agent.x-error_x,2) + pow(agent.y-error_y,2))
                 agent.publisher_data_.publish(msg_data)
-                self.node.get_logger().debug('Agent %s: D: %.2f dx: %.2f dy: %.2f dz: %.2f ' % (agent.id, msg_data.data, dx, dy, dz)) 
-
-        self.target_pose.position.x = self.gt_pose.position.x + dx/4
-        self.target_pose.position.y = self.gt_pose.position.y + dy/4
-
-        self.node.get_logger().debug('Formation: X: %.2f->%.2f Y: %.2f->%.2f Z: %.2f->%.2f' % (self.gt_pose.position.x, self.target_pose.position.x, self.gt_pose.position.y, self.target_pose.position.y, self.gt_pose.position.z, self.target_pose.position.z)) 
-
-    def pose_formation_control(self):
-        dx = dy = dz = 0
-        for agent in self.agent_list:
-            error_x = self.gt_pose.position.x - agent.pose.position.x
-            error_y = self.gt_pose.position.y - agent.pose.position.y
             
-            dx += agent.k * (pow(agent.x,2) - pow(error_x,2))
-            dy += agent.k * (pow(agent.y,2) - pow(agent.y - error_y,2))
-            
-            if not self.digital_twin:
+            if not self.continuous:
+                delta=sqrt(pow(dx,2)+pow(dy,2))
+                if not self.eval_threshold(0.0, delta):
+                    return
+
+            msg = Bool()
+            msg.data = True
+            self.event_x.publish(msg)
+
+            if dx > self.ul:
+                dx = self.ul
+            if dx < self.ll:
+                dx = self.ll
+            if dy > self.ul:
+                dy = self.ul
+            if dy < self.ll:
+                dy = self.ll
+
+            self.target_pose.pose.position.x = self.gt_pose.position.x + dx
+            self.target_pose.pose.position.y = self.gt_pose.position.y + dy
+            self.target_pose.pose.position.z = self.gt_pose.position.z
+        
+            delta=sqrt(pow(dx,2)+pow(dy,2)+pow(dz,2))
+            angles = tf_transformations.euler_from_quaternion((self.gt_pose.orientation.x, self.gt_pose.orientation.y, self.gt_pose.orientation.z, self.gt_pose.orientation.w))
+                    
+            if delta<0.05:
+                roll = angles[0]
+                pitch = angles[1]
+                yaw = angles[2]
+            else:
+                h = sqrt(pow(dx,2)+pow(dy,2))
+                roll = 0.0
+                pitch = -atan2(dz,h)
+                yaw = atan2(dy,dx)
+
+            q = tf_transformations.quaternion_from_euler(roll, pitch, yaw)
+            self.target_pose.pose.orientation.x = q[0]
+            self.target_pose.pose.orientation.y = q[1]
+            self.target_pose.pose.orientation.z = q[2]
+            self.target_pose.pose.orientation.w = q[3]
+            self.target_pose.header.stamp = self.node.get_clock().now().to_msg()
+            self.publisher_goalpose.publish(self.target_pose)
+
+    def pose_pid_controller(self):
+        if self.formation_bool:
+            ex = ey = ez = 0
+            for agent in self.agent_list:
+                error_x = agent.x - (self.gt_pose.position.x - agent.pose.position.x)
+                error_y = agent.y - (self.gt_pose.position.y - agent.pose.position.y)
+                ex += agent.k * error_x
+                ey += agent.k * error_y
+                        
                 msg_data = Float64()
-                msg_data.data = sqrt(pow(agent.x-error_x,2)+pow(error_y,2))
+                msg_data.data = sqrt(pow(error_x,2)+pow(error_y,2))
                 agent.publisher_data_.publish(msg_data)
-                self.node.get_logger().debug('Agent %s: D: %.2f dx: %.2f dy: %.2f dz: %.2f ' % (agent.id, msg_data.data, dx, dy, dz)) 
 
-        self.target_pose.position.x = self.gt_pose.position.x + dx/4
-        self.target_pose.position.y = self.gt_pose.position.y + dy/4
+            aux = self.node.get_clock().now().to_msg()
+            time = aux.sec + aux.nanosec*1e-9
+            
+            msg = Bool()
+            msg.data = True
+            dx = dy = dz = 0
+            # X Controller
+            if self.formation_x_controller.eval_threshold(0.0, ex) or self.continuous:
+                self.formation_x_controller.error[0] = ex
+                dtx = time - self.formation_x_controller.past_time
+                dx = self.formation_x_controller.update(dtx)
+                self.formation_x_controller.past_time = time
+                self.event_x.publish(msg)
+            
+            # Y Controller
+            if self.formation_y_controller.eval_threshold(0.0, ey) or self.continuous:
+                self.formation_y_controller.error[0] = ey
+                dty = time - self.formation_y_controller.past_time
+                dy = self.formation_y_controller.update(dty)
+                self.formation_y_controller.past_time = time
+                self.event_y.publish(msg)
 
-        self.node.get_logger().debug('Formation: X: %.2f->%.2f Y: %.2f->%.2f Z: %.2f->%.2f' % (self.gt_pose.position.x, self.target_pose.position.x, self.gt_pose.position.y, self.target_pose.position.y, self.gt_pose.position.z, self.target_pose.position.z)) 
+            self.target_pose.pose.position.x = self.gt_pose.position.x + dx
+            self.target_pose.pose.position.y = self.gt_pose.position.y + dy
 
+            delta=sqrt(pow(dx,2)+pow(dy,2)+pow(dz,2))
+            angles = tf_transformations.euler_from_quaternion((self.gt_pose.orientation.x, self.gt_pose.orientation.y, self.gt_pose.orientation.z, self.gt_pose.orientation.w))
+                    
+            if delta<0.05:
+                roll = angles[0]
+                pitch = angles[1]
+                yaw = angles[2]
+            else:
+                h = sqrt(pow(dx,2)+pow(dy,2))
+                roll = 0.0
+                pitch = -atan2(dz,h)
+                yaw = atan2(dy,dx)
+
+            q = tf_transformations.quaternion_from_euler(roll, pitch, yaw)
+            self.target_pose.pose.orientation.x = q[0]
+            self.target_pose.pose.orientation.y = q[1]
+            self.target_pose.pose.orientation.z = q[2]
+            self.target_pose.pose.orientation.w = q[3]
+            self.target_pose.header.stamp = self.node.get_clock().now().to_msg()
+            self.publisher_goalpose.publish(self.target_pose)
+
+    def eval_threshold(self, signal, ref):
+        '''
+        # Noise (Cn)
+        mean = signal/len(self.noise)
+        for i in range(0,len(self.noise)-2):
+            self.noise[i] = self.noise[i+1]
+            mean += self.noise[i]/len(self.noise)
+        
+        self.noise[len(self.noise)-1] = signal
+
+        trigger_cn = 0.0
+        for i in range(0,len(self.noise)-1):
+            if abs(self.noise[i]-mean) > trigger_cn:
+                trigger_cn = self.noise[i]-mean
+        '''
+        trigger_cn = 0.0
+
+        # a
+        a = self.trigger_ai * abs(signal - ref)
+        if a > self.trigger_ai:
+            a = self.trigger_ai
+
+        # Threshold
+        self.th = self.trigger_co + a + trigger_cn
+        self.inc = abs(abs(ref-signal) - self.trigger_last_signal) 
+        # Delta Error
+        if (self.inc >= abs(self.th)):
+            self.trigger_last_signal = abs(ref-signal)
+            return True
+
+        return False
+    
     def forces_field(self,dt, error, angle_error):
         Ka = -1.0
         Kr = 150
 
         # Attractive force
-        error_x = (self.target_pose.position.x-self.global_x)*cos(self.global_yaw)+(self.target_pose.position.y-self.global_y)*sin(self.global_yaw)
-        error_y = -(self.target_pose.position.x-self.global_x)*sin(self.global_yaw)+(self.target_pose.position.y-self.global_y)*cos(self.global_yaw)
+        error_x = (self.target_pose.pose.position.x-self.global_x)*cos(self.global_yaw)+(self.target_pose.pose.position.y-self.global_y)*sin(self.global_yaw)
+        error_y = -(self.target_pose.pose.position.x-self.global_x)*sin(self.global_yaw)+(self.target_pose.pose.position.y-self.global_y)*cos(self.global_yaw)
 
         Fa_x = Ka * error_x
         Fa_y = Ka * error_y
@@ -593,10 +891,10 @@ class KheperaWebotsDriver:
         Kp = 1.5
         Ki = 0.008
 
-        d = sqrt(pow(self.target_pose.position.x-self.global_x,2)+pow(self.target_pose.position.y-self.global_y,2))*100
-        if d<1:
+        d = sqrt(pow(self.target_pose.pose.position.x-self.global_x,2)+pow(self.target_pose.pose.position.y-self.global_y,2))*100
+        if d<1.0:
             V = 0.0
-            angles = tf_transformations.euler_from_quaternion((self.target_pose.orientation.x, self.target_pose.orientation.y, self.target_pose.orientation.z, self.target_pose.orientation.w))
+            angles = tf_transformations.euler_from_quaternion((self.target_pose.pose.orientation.x, self.target_pose.pose.orientation.y, self.target_pose.pose.orientation.z, self.target_pose.pose.orientation.w))
             oc = angles[2] - self.global_yaw
             if abs(oc)>0.01:
                 eo = atan2(sin(oc),cos(oc))
@@ -605,7 +903,7 @@ class KheperaWebotsDriver:
             else:
                 w = 0.0
         else:
-            alpha = atan2(self.target_pose.position.y-self.global_y,self.target_pose.position.x-self.global_x)
+            alpha = atan2(self.target_pose.pose.position.y-self.global_y,self.target_pose.pose.position.x-self.global_x)
             oc = alpha - self.global_yaw
             eo = atan2(sin(oc),cos(oc))
             p = (3.14-abs(eo))/3.14
