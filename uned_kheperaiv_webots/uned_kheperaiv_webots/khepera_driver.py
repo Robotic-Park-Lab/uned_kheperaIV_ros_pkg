@@ -3,7 +3,7 @@ from rclpy.time import Time
 import yaml
 
 from std_msgs.msg import String, Float64, Bool
-from geometry_msgs.msg import Twist, Pose, Point, PoseStamped, Vector3
+from geometry_msgs.msg import Twist, Pose, Point, PoseStamped, Vector3, TransformStamped
 from sensor_msgs.msg import LaserScan, Range
 from nav_msgs.msg import Path
 from visualization_msgs.msg import Marker
@@ -12,7 +12,6 @@ from math import atan2, cos, sin, sqrt, radians, pi
 import tf_transformations
 import numpy as np
 from tf2_ros import TransformBroadcaster
-from geometry_msgs.msg import TransformStamped
 
 class Agent():
     def __init__(self, parent, id, x = None, y = None, z = None, d = None, point = None, vector = None):
