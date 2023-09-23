@@ -3,7 +3,7 @@ from rclpy.time import Time
 import yaml
 
 from std_msgs.msg import String, Float64, Bool
-from geometry_msgs.msg import Twist, Pose, Point, PoseStamped
+from geometry_msgs.msg import Twist, Pose, Point, PoseStamped, Vector3
 from sensor_msgs.msg import LaserScan, Range
 from nav_msgs.msg import Path
 from visualization_msgs.msg import Marker
@@ -15,27 +15,36 @@ from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 
 class Agent():
-    def __init__(self, parent, id, x = None, y = None, z = None, d = None):
+    def __init__(self, parent, id, x = None, y = None, z = None, d = None, point = None, vector = None):
         self.id = id
-        if d == None:
-            self.distance_bool = False
-            self.x = x
-            self.y = y
-            self.z = z
-        else:
-            self.distance_bool = True
-            self.d = d
         self.pose = Pose()
         self.parent = parent
-        if self.id == 'origin':
-            self.pose.position.x = 0.0
-            self.pose.position.y = 0.0
-            self.pose.position.z = 0.0
-            self.k = 2.0
-            self.sub_pose = self.parent.node.create_subscription(PoseStamped, self.id + '/local_pose', self.gtpose_callback, 10)
+        if not id.find("line") == -1:
+            self.distance_bool = True
+            self.d = 0
+            self.point = point
+            self.vector = vector
+            self.mod=pow(vector.x,2)+pow(vector.y,2)+pow(vector.z,2)
+            self.k = 4.0
         else:
-            self.k = 1.0
-            self.sub_pose = self.parent.node.create_subscription(PoseStamped, self.id + '/local_pose', self.gtpose_callback, 10)
+            if d == None:
+                self.distance_bool = False
+                self.x = x
+                self.y = y
+                self.z = z
+            else:
+                self.distance_bool = True
+                self.d = d
+            
+            if self.id == 'origin':
+                self.pose.position.x = 0.0
+                self.pose.position.y = 0.0
+                self.pose.position.z = 0.0
+                self.k = 2.0
+                self.sub_pose = self.parent.node.create_subscription(PoseStamped, self.id + '/local_pose', self.gtpose_callback, 10)
+            else:
+                self.k = 1.0
+                self.sub_pose = self.parent.node.create_subscription(PoseStamped, self.id + '/local_pose', self.gtpose_callback, 10)
         if not self.parent.digital_twin:
             self.sub_d_ = self.parent.node.create_subscription(Float64, '/' + self.id + '/d', self.d_callback, 10)
             self.publisher_data_ = self.parent.node.create_publisher(Float64, self.parent.name_value + '/' + self.id + '/data', 10)
@@ -316,8 +325,23 @@ class KheperaWebotsDriver:
                     self.node.create_timer(self.controller['period'], self.distance_pid_controller)
                 for rel in self.relationship:
                     aux = rel.split('_')
-                    robot = Agent(self, aux[0], d = float(aux[1]))
-                    self.node.get_logger().info('Agent: %s: Neighbour: %s \td: %s' % (self.name_value, aux[0], aux[1]))
+                    aux = rel.split('_')
+                    id = aux[0]
+
+                    if not id.find("line") == -1:
+                        p = Point()
+                        p.x = float(aux[1])
+                        p.y = float(aux[2])
+                        p.z = float(aux[3])
+                        u = Vector3()
+                        u.x = float(aux[4])
+                        u.y = float(aux[5])
+                        u.z = float(aux[6])
+                        robot = Agent(self, id, point = p, vector = u)
+                        self.node.get_logger().info('Agent: %s: Neighbour: %s ::: Px: %s Py: %s Pz: %s' % (self.name_value, id, aux[1], aux[2], aux[3]))
+                    else:
+                        robot = Agent(self, aux[0], d = float(aux[1]))
+                        self.node.get_logger().info('Agent: %s: Neighbour: %s \td: %s' % (self.name_value, aux[0], aux[1]))
                     self.agent_list.append(robot)
             elif self.config['task']['type'] == 'pose':
                 if self.controller_type == 'gradient':
@@ -513,6 +537,14 @@ class KheperaWebotsDriver:
         if self.formation_bool:
             dx = dy = dz = 0
             for agent in self.agent_list:
+                if not agent.id.find("line") == -1:
+                    nearest = PoseStamped()
+                    nearest.header.frame_id = "map"
+                    gamma = -np.dot([agent.point.x-self.gt_pose.position.x, agent.point.y-self.gt_pose.position.y, agent.point.z-self.gt_pose.position.z],[agent.vector.x, agent.vector.y, agent.vector.z])/agent.mod
+                    nearest.pose.position.x = agent.point.x + gamma * agent.vector.x
+                    nearest.pose.position.y = agent.point.y + gamma * agent.vector.y
+                    nearest.pose.position.z = agent.point.z + gamma * agent.vector.z
+                    agent.gtpose_callback(nearest)
                 error_x = self.gt_pose.position.x - agent.pose.position.x
                 error_y = self.gt_pose.position.y - agent.pose.position.y
                 error_z = self.gt_pose.position.z - agent.pose.position.z
@@ -575,6 +607,14 @@ class KheperaWebotsDriver:
         if self.formation_bool:
             ex = ey = ez = 0
             for agent in self.agent_list:
+                if not agent.id.find("line") == -1:
+                    nearest = PoseStamped()
+                    nearest.header.frame_id = "map"
+                    gamma = -np.dot([agent.point.x-self.gt_pose.position.x, agent.point.y-self.gt_pose.position.y, agent.point.z-self.gt_pose.position.z],[agent.vector.x, agent.vector.y, agent.vector.z])/agent.mod
+                    nearest.pose.position.x = agent.point.x + gamma * agent.vector.x
+                    nearest.pose.position.y = agent.point.y + gamma * agent.vector.y
+                    nearest.pose.position.z = agent.point.z + gamma * agent.vector.z
+                    agent.gtpose_callback(nearest)
                 error_x = self.gt_pose.position.x - agent.pose.position.x
                 error_y = self.gt_pose.position.y - agent.pose.position.y
                 error_z = self.gt_pose.position.z - agent.pose.position.z
