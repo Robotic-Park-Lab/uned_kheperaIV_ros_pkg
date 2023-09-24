@@ -193,7 +193,7 @@ class KheperaIVDriver(Node):
 
         # Publisher
         self.publisher_status = self.create_publisher(String,'status', 10)
-        self.pub_pose_ = self.create_publisher(Pose,'local_pose', 10)
+        self.pub_pose_ = self.create_publisher(PoseStamped,'local_pose', 10)
         self.path_publisher = self.create_publisher(Path, 'path', 10)
         # Subscription
         self.create_subscription(PoseStamped, 'pose', self.pose_callback, 1)
@@ -210,7 +210,6 @@ class KheperaIVDriver(Node):
         self.pose.header.frame_id = "map"
         self.target_pose = PoseStamped()
         self.target_pose.header.frame_id = "map"
-        self.target_twist
         self.path = Path()
         self.path.header.frame_id = "map"
         self.time = Time()
@@ -354,7 +353,7 @@ class KheperaIVDriver(Node):
         
     def order_callback(self, msg):
         self.get_logger().debug('Order: "%s"' % msg.data)
-        if msg.data == 'formation_run' and self.task:
+        if msg.data == 'formation_run' and self.onboard:
             if self.config['task']['enable']:
                 self.formation_bool = True
                 if self.onboard:
@@ -376,6 +375,21 @@ class KheperaIVDriver(Node):
         else:
             # if not(np.isnan(msg.position.x) or np.isnan(msg.position.y) or np.isnan(msg.position.z) or np.isnan(msg.orientation.x) or np.isnan(msg.orientation.y) or np.isnan(msg.orientation.z)  or np.isnan(msg.orientation.w)) and not (msg.position.x == 0.0 and msg.position.y == 0.0 and msg.position.z == 0.0):
             delta = sqrt(pow(self.pose.pose.position.x-msg.pose.position.x,2)+pow(self.pose.pose.position.y-msg.pose.position.y,2))
+            if self.path_enable:
+                self.path.header.stamp = self.get_clock().now().to_msg()
+                PoseStamp = PoseStamped()
+                PoseStamp.header.frame_id = "map"
+                PoseStamp.pose.position.x = self.pose.pose.position.x
+                PoseStamp.pose.position.y = self.pose.pose.position.y
+                PoseStamp.pose.position.z = self.pose.pose.position.z
+                PoseStamp.pose.orientation.x = self.pose.pose.orientation.x
+                PoseStamp.pose.orientation.y = self.pose.pose.orientation.y
+                PoseStamp.pose.orientation.z = self.pose.pose.orientation.z
+                PoseStamp.pose.orientation.w = self.pose.pose.orientation.w
+                PoseStamp.header.stamp = self.get_clock().now().to_msg()
+                self.path.poses.append(PoseStamp)
+                self.path_publisher.publish(self.path)
+
             if (np.linalg.norm(delta)>self.threshold and np.linalg.norm(delta)<0.2) or self.communication:
                 self.get_logger().debug('Delta %.3f' % np.linalg.norm(delta))
                 self.pose = msg
@@ -403,10 +417,7 @@ class KheperaIVDriver(Node):
                 t_base.transform.rotation.w = self.pose.pose.orientation.w
                 self.tfbr.sendTransform(t_base)
                 
-                if self.path_enable:
-                    self.path.header.stamp = self.get_clock().now().to_msg()
-                    self.path.poses.append(self.pose)
-                    self.path_publisher.publish(self.path)
+                
 
                 self.get_logger().debug('Pose X: %.3f Y: %.3f Yaw: %.3f theta_vicon %.3f' % (self.pose.position.x, self.pose.pose.position.y, self.theta, self.theta_vicon))
 
@@ -455,12 +466,26 @@ class KheperaIVDriver(Node):
                         t_base.child_frame_id = self.id+'/base_link'
                         t_base.transform.translation.x = self.pose.pose.position.x
                         t_base.transform.translation.y = self.pose.pose.position.y
-                        t_base.transform.translation.z = 0.05
+                        t_base.transform.translation.z = 0.0
                         t_base.transform.rotation.x = 0.0
                         t_base.transform.rotation.y = 0.0
                         t_base.transform.rotation.z = self.pose.pose.orientation.z
                         t_base.transform.rotation.w = self.pose.pose.orientation.w 
                         self.tfbr.sendTransform(t_base)
+                        if self.path_enable:
+                            self.path.header.stamp = self.get_clock().now().to_msg()
+                            PoseStamp = PoseStamped()
+                            PoseStamp.header.frame_id = "map"
+                            PoseStamp.pose.position.x = self.pose.pose.position.x
+                            PoseStamp.pose.position.y = self.pose.pose.position.y
+                            PoseStamp.pose.position.z = self.pose.pose.position.z
+                            PoseStamp.pose.orientation.x = self.pose.pose.orientation.x
+                            PoseStamp.pose.orientation.y = self.pose.pose.orientation.y
+                            PoseStamp.pose.orientation.z = self.pose.pose.orientation.z
+                            PoseStamp.pose.orientation.w = self.pose.pose.orientation.w
+                            PoseStamp.header.stamp = self.get_clock().now().to_msg()
+                            self.path.poses.append(PoseStamp)
+                            self.path_publisher.publish(self.path)
                 except:
                     pass
             except:
