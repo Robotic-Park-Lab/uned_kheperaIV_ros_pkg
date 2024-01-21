@@ -224,7 +224,7 @@ class KheperaIVDriver(Node):
         self.first_goal_pose = False
         self.neighbour_update = False
         self.init_pose = False
-
+        self.last_time = 0.0
         # Read Params
         self.id = self.get_parameter('id').get_parameter_value().string_value
         config_file = self.get_parameter('config').get_parameter_value().string_value
@@ -330,7 +330,9 @@ class KheperaIVDriver(Node):
         else:
             self.threshold = 0.001
 
-        self.pose_callback(self.pose)
+        self.positioning = self.config['positioning']
+        if self.positioning == 'Intern':
+            self.pose_callback(self.pose)
 
     def cmd_callback(self, msg):
         # Read a command
@@ -370,56 +372,65 @@ class KheperaIVDriver(Node):
             self.pose = msg
             self.init_pose = True
             self.target_pose = self.pose
-            command = "i " + str(round(msg.pose.position.x,3)) + " " + str(round(msg.pose.position.y,3))+ " " + str(round(self.theta,3))
+            [roll, pitch, theta_vicon] = euler_from_quaternion([self.pose.pose.orientation.x, self.pose.pose.orientation.y, self.pose.pose.orientation.z, self.pose.pose.orientation.w])
+            self.get_logger().info('Init pose::: X: %s Y: %s Z: %s' % (str(round(msg.pose.position.x,3)), str(round(msg.pose.position.y,3)), str(round(self.theta,3))))
+            self.theta = theta_vicon
+            command = "i " + str(round(msg.pose.position.x,3)) + " " + str(round(msg.pose.position.y,3))+ " " + str(round(theta_vicon,3))
             self.sock.sendall(bytes(command, 'utf-8'))
         else:
-            # if not(np.isnan(msg.position.x) or np.isnan(msg.position.y) or np.isnan(msg.position.z) or np.isnan(msg.orientation.x) or np.isnan(msg.orientation.y) or np.isnan(msg.orientation.z)  or np.isnan(msg.orientation.w)) and not (msg.position.x == 0.0 and msg.position.y == 0.0 and msg.position.z == 0.0):
-            delta = sqrt(pow(self.pose.pose.position.x-msg.pose.position.x,2)+pow(self.pose.pose.position.y-msg.pose.position.y,2))
-            if self.path_enable:
-                self.path.header.stamp = self.get_clock().now().to_msg()
-                PoseStamp = PoseStamped()
-                PoseStamp.header.frame_id = "map"
-                PoseStamp.pose.position.x = self.pose.pose.position.x
-                PoseStamp.pose.position.y = self.pose.pose.position.y
-                PoseStamp.pose.position.z = self.pose.pose.position.z
-                PoseStamp.pose.orientation.x = self.pose.pose.orientation.x
-                PoseStamp.pose.orientation.y = self.pose.pose.orientation.y
-                PoseStamp.pose.orientation.z = self.pose.pose.orientation.z
-                PoseStamp.pose.orientation.w = self.pose.pose.orientation.w
-                PoseStamp.header.stamp = self.get_clock().now().to_msg()
-                self.path.poses.append(PoseStamp)
-                self.path_publisher.publish(self.path)
+            time = self.get_clock().now().to_msg()
+            delta_t = (time.sec + time.nanosec*1e-9) - self.last_time
+            if not self.positioning == "Intern" and delta_t>0.1:
+                self.last_time = time.sec + time.nanosec*1e-9
+                # if not(np.isnan(msg.position.x) or np.isnan(msg.position.y) or np.isnan(msg.position.z) or np.isnan(msg.orientation.x) or np.isnan(msg.orientation.y) or np.isnan(msg.orientation.z)  or np.isnan(msg.orientation.w)) and not (msg.position.x == 0.0 and msg.position.y == 0.0 and msg.position.z == 0.0):
+                delta = sqrt(pow(self.pose.pose.position.x-msg.pose.position.x,2)+pow(self.pose.pose.position.y-msg.pose.position.y,2))
+                if self.path_enable:
+                    self.path.header.stamp = self.get_clock().now().to_msg()
+                    PoseStamp = PoseStamped()
+                    PoseStamp.header.frame_id = "map"
+                    PoseStamp.pose.position.x = self.pose.pose.position.x
+                    PoseStamp.pose.position.y = self.pose.pose.position.y
+                    PoseStamp.pose.position.z = self.pose.pose.position.z
+                    PoseStamp.pose.orientation.x = self.pose.pose.orientation.x
+                    PoseStamp.pose.orientation.y = self.pose.pose.orientation.y
+                    PoseStamp.pose.orientation.z = self.pose.pose.orientation.z
+                    PoseStamp.pose.orientation.w = self.pose.pose.orientation.w
+                    PoseStamp.header.stamp = self.get_clock().now().to_msg()
+                    self.path.poses.append(PoseStamp)
+                    self.path_publisher.publish(self.path)
 
-            if (np.linalg.norm(delta)>self.threshold and np.linalg.norm(delta)<0.2) or self.communication:
-                self.get_logger().debug('Delta %.3f' % np.linalg.norm(delta))
-                self.pose = msg
-                self.pose.pose.position.z = 0.00
-                [roll, pitch, theta_vicon] = euler_from_quaternion([self.pose.orientation.x, self.pose.orientation.y, self.pose.orientation.z, self.pose.orientation.w])
-                if ((theta_vicon-self.theta) < 0.3) or abs(theta_vicon-self.theta)>4.6:
-                    self.theta = theta_vicon
-                q = quaternion_from_euler(0.0, 0.0, self.theta)
-                self.pose.pose.orientation.x = q[0]
-                self.pose.pose.orientation.y = q[1]
-                self.pose.pose.orientation.z = q[2]
-                self.pose.pose.orientation.w = q[3]
-                        
-                self.pub_pose_.publish(self.pose)
-                t_base = TransformStamped()
-                t_base.header.stamp = self.get_clock().now().to_msg()
-                t_base.header.frame_id = 'map'
-                t_base.child_frame_id = self.id+'/base_link'
-                t_base.transform.translation.x = self.pose.pose.position.x
-                t_base.transform.translation.y = self.pose.pose.position.y
-                t_base.transform.translation.z = self.pose.pose.position.z
-                t_base.transform.rotation.x = self.pose.pose.orientation.x
-                t_base.transform.rotation.y = self.pose.pose.orientation.y
-                t_base.transform.rotation.z = self.pose.pose.orientation.z
-                t_base.transform.rotation.w = self.pose.pose.orientation.w
-                self.tfbr.sendTransform(t_base)
-                
-                
+                if (np.linalg.norm(delta)>self.threshold and np.linalg.norm(delta)<0.2) or self.communication:
+                    self.get_logger().debug('Delta %.3f' % np.linalg.norm(delta))
+                    self.pose = msg
+                    self.pose.pose.position.z = 0.00
+                    command = "i " + str(round(msg.pose.position.x,3)) + " " + str(round(msg.pose.position.y,3))+ " " + str(round(self.theta,3))
+                    self.sock.sendall(bytes(command, 'utf-8'))
+                    [roll, pitch, theta_vicon] = euler_from_quaternion([self.pose.pose.orientation.x, self.pose.pose.orientation.y, self.pose.pose.orientation.z, self.pose.pose.orientation.w])
+                    if ((theta_vicon-self.theta) < 0.3) or abs(theta_vicon-self.theta)>4.6:
+                        self.theta = theta_vicon
+                    q = quaternion_from_euler(0.0, 0.0, self.theta)
+                    self.pose.pose.orientation.x = q[0]
+                    self.pose.pose.orientation.y = q[1]
+                    self.pose.pose.orientation.z = q[2]
+                    self.pose.pose.orientation.w = q[3]
+                            
+                    self.pub_pose_.publish(self.pose)
+                    t_base = TransformStamped()
+                    t_base.header.stamp = self.get_clock().now().to_msg()
+                    t_base.header.frame_id = 'map'
+                    t_base.child_frame_id = self.id+'/base_link'
+                    t_base.transform.translation.x = self.pose.pose.position.x
+                    t_base.transform.translation.y = self.pose.pose.position.y
+                    t_base.transform.translation.z = self.pose.pose.position.z
+                    t_base.transform.rotation.x = self.pose.pose.orientation.x
+                    t_base.transform.rotation.y = self.pose.pose.orientation.y
+                    t_base.transform.rotation.z = self.pose.pose.orientation.z
+                    t_base.transform.rotation.w = self.pose.pose.orientation.w
+                    self.tfbr.sendTransform(t_base)
+                    
+                    
 
-                self.get_logger().debug('Pose X: %.3f Y: %.3f Yaw: %.3f theta_vicon %.3f' % (self.pose.position.x, self.pose.pose.position.y, self.theta, self.theta_vicon))
+                    self.get_logger().debug('Pose X: %.3f Y: %.3f Yaw: %.3f theta_vicon %.3f' % (self.pose.pose.position.x, self.pose.pose.position.y, self.theta, self.theta_vicon))
 
     def goalpose_callback(self, msg):
         self.get_logger().debug('New Goal pose: %.2f, %.2f' % (msg.pose.position.x, msg.pose.position.y))
