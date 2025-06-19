@@ -13,7 +13,7 @@ def generate_launch_description():
         package='uned_kheperaiv_driver',
         executable='kheperaIV_client_driver',
         name='driver',
-        namespace='khepera04',
+        namespace='khepera03',
         output='screen',
         shell=True,
         emulate_tty=True,

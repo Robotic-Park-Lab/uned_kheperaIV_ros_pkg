@@ -1,6 +1,6 @@
 khepera03:
   name: khepera03
-  agent_ip: '192.168.0.19'
+  agent_ip: '192.168.1.19'
   port_number: 50000
   init_theta: 0.0
   pose:
@@ -17,7 +17,8 @@ khepera03:
       ai: Null
   local_pose:
     enable: True
-    T: 20
+    path: False
+    T: 200
   local_twist:
     enable: True
     T: 20
@@ -35,6 +36,8 @@ khepera03:
     T: 20
   task:
     enable: False
+    T: 100
+    Onboard: False
     role: Null
     type: Null
     relationship: Null

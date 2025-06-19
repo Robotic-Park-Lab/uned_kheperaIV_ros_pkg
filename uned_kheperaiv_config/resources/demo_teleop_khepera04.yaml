@@ -35,6 +35,8 @@ khepera04:
     T: 20
   task:
     enable: False
+    T: 100
+    Onboard: False
     role: Null
     type: Null
     relationship: Null

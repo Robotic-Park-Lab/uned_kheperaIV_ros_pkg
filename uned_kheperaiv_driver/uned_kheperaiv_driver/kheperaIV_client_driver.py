@@ -3,9 +3,11 @@ import socket
 import numpy as np
 import yaml
 import time
+import rclpy.qos
 from rclpy.node import Node
 from std_msgs.msg import String, Bool, UInt16MultiArray, Float64, Float64MultiArray
-from geometry_msgs.msg import Twist, Pose, TransformStamped, Point, PoseStamped, Vector3
+from geometry_msgs.msg import Twist, Pose, TransformStamped, Point, PoseStamped, Vector3, Quaternion
+from sensor_msgs.msg import Imu
 from nav_msgs.msg import Path
 from visualization_msgs.msg import Marker
 from math import sqrt, cos, sin, atan2
@@ -186,25 +188,27 @@ class KheperaIVDriver(Node):
     def __init__(self):
         super().__init__('driver')
 
-        ## ROS2 Environment
-        # Params
+        # ======================== ROS 2 ENVIROMENT ==================================
+        # Configuración de QoS para mejor desempeño
+        qos_profile = rclpy.qos.QoSPresetProfiles.SYSTEM_DEFAULT.value
+        # =========================== PARÁMETROS =====================================
         self.declare_parameter('config', 'file_path.yaml')
         self.declare_parameter('id', 'khepera01')
 
-        # Publisher
-        self.publisher_status = self.create_publisher(String,'status', 10)
-        self.pub_pose_ = self.create_publisher(PoseStamped,'local_pose', 10)
-        self.path_publisher = self.create_publisher(Path, 'path', 10)
-        # Subscription
-        self.create_subscription(PoseStamped, 'pose', self.pose_callback, 1)
-        self.sub_goalpose = self.create_subscription(PoseStamped, 'goal_pose', self.goalpose_callback, 10)
-        self.create_subscription(String, 'cmd', self.cmd_callback, 1)
-        self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 1)
-        self.create_subscription(String, '/swarm/status', self.order_callback, 10)
-        self.create_subscription(String, '/swarm/order', self.order_callback, 1)
-        self.create_subscription(Time, '/swarm/time', self.time_callback, 1)
+        # ========================== PUBLICADORES ====================================
+        self.status_pub = self.create_publisher(String,'status', qos_profile)
+        self.pose_pub = self.create_publisher(PoseStamped,'local_pose', qos_profile)
+        self.path_pub = self.create_publisher(Path, 'path', qos_profile)
+        self.imu_pub = self.create_publisher(Imu, 'imu', qos_profile)
+        # ========================== SUSCRIPTORES ====================================
+        self.create_subscription(PoseStamped, 'pose', self.pose_callback, qos_profile)
+        self.create_subscription(String, 'cmd', self.cmd_callback, qos_profile)
+        self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, qos_profile)
+        self.create_subscription(String, '/swarm/status', self.order_callback, qos_profile)
+        self.create_subscription(String, '/swarm/order', self.order_callback, qos_profile)
+        self.create_subscription(Time, '/swarm/time', self.time_callback, qos_profile)
 
-        # Variables
+        # ======================= VARIABLES GLOBALES =================================
         self.tfbr = TransformBroadcaster(self)
         self.pose = PoseStamped()
         self.pose.header.frame_id = "map"
@@ -212,54 +216,56 @@ class KheperaIVDriver(Node):
         self.target_pose.header.frame_id = "map"
         self.path = Path()
         self.path.header.frame_id = "map"
+        self.max_path_length = 500  # Límite de puntos almacenados
         self.time = Time()
         self.target_twist = Twist()
-
-        self.initialize()
-
-    def initialize(self):
-        self.get_logger().info('KheperaIVDriver::inicialize() ok.')
-        self.tfbr = TransformBroadcaster(self)
         self.formation_bool = False
         self.first_goal_pose = False
         self.neighbour_update = False
         self.init_pose = False
         self.last_time = 0.0
-        # Read Params
+        self.rele = False
+
+        self.initialize()
+
+    def initialize(self):
+        self.get_logger().info('KheperaIVDriver::inicialize() ok.')
+        
+        # ======================= CONFIG PARAMETERS =================================
         self.id = self.get_parameter('id').get_parameter_value().string_value
         config_file = self.get_parameter('config').get_parameter_value().string_value
         with open(config_file, 'r') as file:
             documents = yaml.safe_load(file)
         self.config = documents[self.id]
 
-        robot_port = self.config['port_number']
-        self.get_logger().info('KheperaIVDriver::Port %s.' % str(robot_port))
+        # Configuración de conexión
+        self.robot_ip = self.config['agent_ip']
+        self.robot_port = self.config['port_number']
+        self.control_rate = 0.5
+        self.get_logger().info('%s:: IP: %s;Port %s.' % (self.id, self.robot_ip, str(self.robot_port)))
+        self.connected = False
+
+        # Set Init Pose TO-DO: Improve
         self.pose.pose.position.x = self.config['pose']['x']
         self.pose.pose.position.y = self.config['pose']['y']
-        if self.config['local_pose']['enable']:
-            self.timer_iterate = self.create_timer(self.config['local_pose']['T']/1000, self.get_pose)
-        else:
-            self.timer_iterate = self.create_timer(0.1, self.get_pose)
-        
-        robot_ip = self.config['agent_ip']
-         
         self.theta = self.config['init_theta']
         self.theta_vicon = self.theta
-        
-        # Open a socket
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(2)
-        # Set the server address structure
-        server_address = (robot_ip, robot_port)
-        self.get_logger().info('KheperaIVDriver::IP %s.' % robot_ip)
-        self.get_logger().info('KheperaIVDriver::Yaw %f.' % self.theta)
-        # Connect to the server
-        self.sock.connect(server_address)
+        self.timer_pose = self.create_timer(self.config['local_pose']['T']/100, self.get_pose)
+        self.path_enable = self.config['local_pose']['path']
+        self.communication = (self.config['communication']['type'] == 'Continuous')
+        if not self.communication:
+            self.threshold = self.config['communication']['threshold']['co']
+        else:
+            self.threshold = 0.001
+        self.positioning = self.config['positioning']
+        # if self.positioning == 'Intern':
+        #     self.pose_callback(self.pose)
 
-        # Set Formation
+        # Set Formation TO-DO: Improve
         if self.config['task']['enable']:
-            self.destroy_subscription(self.sub_goalpose)
             self.publisher_goalpose = self.create_publisher(PoseStamped, 'goal_pose', 10)
+        else:
+            self.create_subscription(PoseStamped, 'goal_pose', self.goalpose_callback, 1)
 
         self.onboard = self.config['task']['Onboard']
         if self.config['task']['enable'] and not self.onboard:
@@ -323,50 +329,73 @@ class KheperaIVDriver(Node):
                     self.get_logger().info('Agent: %s. Neighbour %s ::: x: %s \ty: %s \tz: %s' % (self.id, aux[0], aux[1], aux[2], aux[3]))
                     self.agent_list.append(robot)
         
-        self.path_enable = self.config['local_pose']['path']
-        self.communication = (self.config['communication']['type'] == 'Continuous')
-        if not self.communication:
-            self.threshold = self.config['communication']['threshold']['co']
-        else:
-            self.threshold = 0.001
+        self.connect_to_robot()
+        self.imu_timer = self.create_timer(1.0/self.control_rate, self.get_imu)
+        self.ultrasound_timer = self.create_timer(1.0/self.control_rate, self.get_us)
 
-        self.positioning = self.config['positioning']
-        if self.positioning == 'Intern':
-            self.pose_callback(self.pose)
+    def connect_to_robot(self):
+        """Establece conexión TCP con el robot"""
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.settimeout(2.0)
+            self.sock.connect((self.robot_ip, self.robot_port))
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            self.connected = True
+            self.get_logger().info(f"Conexión establecida con {self.robot_ip}:{self.robot_port}")
+            if self.positioning == 'Intern':
+                self.pose_callback(self.pose)
+        except Exception as e:
+            self.get_logger().error(f"Error de conexión: {str(e)}")
+            self.connected = False
+            self.reconnect_timer = self.create_timer(5.0, self.reconnect_attempt)
+
+    def reconnect_attempt(self):
+        """Intenta reconectar al robot"""
+        if not self.connected:
+            self.get_logger().info("Intentando reconectar...")
+            self.connect_to_robot()
+
+    def send_command(self, command):
+        """Envía comando al robot con manejo de errores"""
+        self.get_logger().debug('command:%s' % command)
+        if self.connected:
+            try:
+                self.sock.sendall(command.encode('utf-8'))
+            except Exception as e:
+                self.get_logger().error(f"Error enviando comando: {str(e)}")
+                self.connected = False
+                self.sock.close()
+                self.reconnect_attempt()
 
     def cmd_callback(self, msg):
         # Read a command
         command = msg.data
 
         # Send the command to the server
-        self.sock.sendall(bytes(command, 'utf-8'))
+        # self.sock.sendall(bytes(command, 'utf-8'))
+        self.send_command(command)
 
         if command == "get_data":
             data = self.sock.recv(1024).decode('utf-8')
             self.get_logger().info('Khepera IV Driver: sensors: %s' % data)
+        if command == "p":
+            data = self.sock.recv(1024).decode('utf-8')
 
     def cmd_vel_callback(self, msg):
         self.target_twist = msg
-        command = "d " + str(round(msg.linear.x,3)) + " " + str(round(msg.angular.z,3))
-        self.sock.sendall(bytes(command, 'utf-8'))
+        command = f"d {msg.linear.x:.3f} {msg.angular.z:.3f}\n"
+        self.send_command(command)
 
+    def goalpose_callback(self, msg):
+        self.target_pose = msg
+        command = f"g {msg.pose.position.x:.3f} {msg.pose.position.y:.3f}\n"
+        self.send_command(command)
+    
     def time_callback(self,msg):
         self.time = msg.sec + (msg.nanosec/1000000000)
-        
-    def order_callback(self, msg):
-        self.get_logger().debug('Order: "%s"' % msg.data)
-        if msg.data == 'formation_run' and self.onboard:
-            if self.config['task']['enable']:
-                self.formation_bool = True
-                if self.onboard:
-                    self.sock.sendall(bytes("s ", 'utf-8'))
-        elif msg.data == 'formation_stop':
-            self.formation_bool = False
-            if self.onboard:
-                self.sock.sendall(bytes("r ", 'utf-8'))
-        else:
-            self.get_logger().error('"%s": Unknown order' % (msg.data))
-
+        command = f"t {self.time:.3f}\n"
+        self.send_command(command)
+    
     def pose_callback(self, msg):
         if not self.init_pose:
             self.pose = msg
@@ -375,12 +404,12 @@ class KheperaIVDriver(Node):
             [roll, pitch, theta_vicon] = euler_from_quaternion([self.pose.pose.orientation.x, self.pose.pose.orientation.y, self.pose.pose.orientation.z, self.pose.pose.orientation.w])
             self.get_logger().info('Init pose::: X: %s Y: %s Z: %s' % (str(round(msg.pose.position.x,3)), str(round(msg.pose.position.y,3)), str(round(self.theta,3))))
             self.theta = theta_vicon
-            command = "i " + str(round(msg.pose.position.x,3)) + " " + str(round(msg.pose.position.y,3))+ " " + str(round(theta_vicon,3))
-            self.sock.sendall(bytes(command, 'utf-8'))
+            command = f"i {msg.pose.position.x:.3f} {msg.pose.position.y:.3f}\n"
+            self.send_command(command)
         else:
             time = self.get_clock().now().to_msg()
             delta_t = (time.sec + time.nanosec*1e-9) - self.last_time
-            if not self.positioning == "Intern" and delta_t>0.1:
+            if not self.positioning == "Intern" and delta_t>0.1: # TO-DO
                 self.last_time = time.sec + time.nanosec*1e-9
                 # if not(np.isnan(msg.position.x) or np.isnan(msg.position.y) or np.isnan(msg.position.z) or np.isnan(msg.orientation.x) or np.isnan(msg.orientation.y) or np.isnan(msg.orientation.z)  or np.isnan(msg.orientation.w)) and not (msg.position.x == 0.0 and msg.position.y == 0.0 and msg.position.z == 0.0):
                 delta = sqrt(pow(self.pose.pose.position.x-msg.pose.position.x,2)+pow(self.pose.pose.position.y-msg.pose.position.y,2))
@@ -397,14 +426,15 @@ class KheperaIVDriver(Node):
                     PoseStamp.pose.orientation.w = self.pose.pose.orientation.w
                     PoseStamp.header.stamp = self.get_clock().now().to_msg()
                     self.path.poses.append(PoseStamp)
-                    self.path_publisher.publish(self.path)
+                    self.path_pub.publish(self.path)
 
                 if (np.linalg.norm(delta)>self.threshold and np.linalg.norm(delta)<0.2) or self.communication:
                     self.get_logger().debug('Delta %.3f' % np.linalg.norm(delta))
                     self.pose = msg
                     self.pose.pose.position.z = 0.00
-                    command = "i " + str(round(msg.pose.position.x,3)) + " " + str(round(msg.pose.position.y,3))+ " " + str(round(self.theta,3))
-                    self.sock.sendall(bytes(command, 'utf-8'))
+                    #command = "i " + str(round(msg.pose.position.x,3)) + " " + str(round(msg.pose.position.y,3))+ " " + str(round(self.theta,3))
+                    command = f"i {msg.pose.position.x:.3f} {msg.pose.position.x:.3f}\n"
+                    self.send_command(command)
                     [roll, pitch, theta_vicon] = euler_from_quaternion([self.pose.pose.orientation.x, self.pose.pose.orientation.y, self.pose.pose.orientation.z, self.pose.pose.orientation.w])
                     if ((theta_vicon-self.theta) < 0.3) or abs(theta_vicon-self.theta)>4.6:
                         self.theta = theta_vicon
@@ -414,7 +444,7 @@ class KheperaIVDriver(Node):
                     self.pose.pose.orientation.z = q[2]
                     self.pose.pose.orientation.w = q[3]
                             
-                    self.pub_pose_.publish(self.pose)
+                    self.pose_pub.publish(self.pose)
                     t_base = TransformStamped()
                     t_base.header.stamp = self.get_clock().now().to_msg()
                     t_base.header.frame_id = 'map'
@@ -427,90 +457,83 @@ class KheperaIVDriver(Node):
                     t_base.transform.rotation.z = self.pose.pose.orientation.z
                     t_base.transform.rotation.w = self.pose.pose.orientation.w
                     self.tfbr.sendTransform(t_base)
-                    
-                    
 
                     self.get_logger().debug('Pose X: %.3f Y: %.3f Yaw: %.3f theta_vicon %.3f' % (self.pose.pose.position.x, self.pose.pose.position.y, self.theta, self.theta_vicon))
 
-    def goalpose_callback(self, msg):
-        self.get_logger().debug('New Goal pose: %.2f, %.2f' % (msg.pose.position.x, msg.pose.position.y))
-        self.target_pose = msg
-        command = "g " + str(round(msg.pose.position.x,3)) + " " + str(round(msg.pose.position.y,3))
-        self.sock.sendall(bytes(command, 'utf-8'))
-    
     def get_pose(self):
-        if self.init_pose:
-            # Read a command
-            command = 'p'
-            # Send the command to the server
+        if self.init_pose and self.connected:
             try:
-                self.sock.sendall(bytes(command, 'utf-8'))
+                self.send_command("p")
+                data = self.sock.recv(1024).decode('utf-8').strip()
+                if data:
+                    x, y, theta = map(float, data.split(','))
+                    # self.update_pose(x, y, theta)
+            except Exception as e:
+                self.get_logger().warn(f"Error obteniendo pose: {str(e)}")
+                self.connected = False
+            try:
+                delta = sqrt((pow(self.pose.pose.position.x-x,2)+pow(self.pose.pose.position.y-y,2)))
+                self.get_logger().debug('X: %.2f Y: %.2f x: %.2f y: %.2f DELTA: %.2f' % (self.pose.pose.position.x, self.pose.pose.position.y, x, y, delta))
+                if (self.communication or delta>self.threshold) and delta<0.2:
+                    self.pose.pose.position = Point(x=x, y=y, z=0.0)
+                    q = quaternion_from_euler(0, 0, theta)
+                    self.pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+                    self.pose.header.stamp = self.get_clock().now().to_msg()
+                    # self.pose.pose.orientation.z = np.sin(theta/2)
+                    # self.pose.pose.orientation.w = np.cos(theta/2)
+                    self.get_logger().debug('Xp: %.3f, Yp: %.3f' % (self.pose.pose.position.x, self.pose.pose.position.y))
+                    self.pose_pub.publish(self.pose)
+                    
+                    t_base = TransformStamped()
+                    t_base.header = self.pose.header
+                    t_base.child_frame_id = self.id+'/base_link'
+                    t_base.transform.translation.x = self.pose.pose.position.x
+                    t_base.transform.translation.y = self.pose.pose.position.y
+                    t_base.transform.translation.z = 0.0
+                    t_base.transform.rotation = self.pose.pose.orientation
+                    self.tfbr.sendTransform(t_base)
 
-                data = self.sock.recv(1024).decode('utf-8')
-                value = data.split(',')
-                try:
-                    '''
-                    d = float(value[0])
-                    self.theta = float(value[1])
-                    if self.init_pose:
-                        self.theta = float(value[1])
-                    self.pose.position.x += d * cos(self.theta)
-                    self.pose.position.y += d * sin(self.theta)
-                    self.pose.orientation.x = 0.0
-                    self.pose.orientation.y = 0.0
-                    self.pose.orientation.z = np.sin(self.theta/2)
-                    self.pose.orientation.w = np.cos(self.theta/2)
-                    '''
-                    delta = sqrt((pow(self.pose.pose.position.x-float(value[0]),2)+pow(self.pose.pose.position.y-float(value[1]),2)))
-                    if (self.communication or delta>self.threshold) and delta<0.2:
-                        self.pose.pose.position.x = float(value[0])
-                        self.pose.pose.position.y = float(value[1])
-                        self.pose.pose.orientation.x = 0.0
-                        self.pose.pose.orientation.y = 0.0
-                        self.pose.pose.orientation.z = np.sin(float(value[2])/2)
-                        self.pose.pose.orientation.w = np.cos(float(value[2])/2)
-                        self.get_logger().debug('Xp: %.3f, Yp: %.3f' % (self.pose.pose.position.x, self.pose.pose.position.y))
-                        self.pub_pose_.publish(self.pose)
-                        t_base = TransformStamped()
-                        t_base.header.stamp = self.get_clock().now().to_msg()
-                        t_base.header.frame_id = 'map'
-                        t_base.child_frame_id = self.id+'/base_link'
-                        t_base.transform.translation.x = self.pose.pose.position.x
-                        t_base.transform.translation.y = self.pose.pose.position.y
-                        t_base.transform.translation.z = 0.0
-                        t_base.transform.rotation.x = 0.0
-                        t_base.transform.rotation.y = 0.0
-                        t_base.transform.rotation.z = self.pose.pose.orientation.z
-                        t_base.transform.rotation.w = self.pose.pose.orientation.w 
-                        self.tfbr.sendTransform(t_base)
-                        if self.path_enable:
-                            self.path.header.stamp = self.get_clock().now().to_msg()
-                            PoseStamp = PoseStamped()
-                            PoseStamp.header.frame_id = "map"
-                            PoseStamp.pose.position.x = self.pose.pose.position.x
-                            PoseStamp.pose.position.y = self.pose.pose.position.y
-                            PoseStamp.pose.position.z = self.pose.pose.position.z
-                            PoseStamp.pose.orientation.x = self.pose.pose.orientation.x
-                            PoseStamp.pose.orientation.y = self.pose.pose.orientation.y
-                            PoseStamp.pose.orientation.z = self.pose.pose.orientation.z
-                            PoseStamp.pose.orientation.w = self.pose.pose.orientation.w
-                            PoseStamp.header.stamp = self.get_clock().now().to_msg()
-                            self.path.poses.append(PoseStamp)
-                            self.path_publisher.publish(self.path)
-                except:
-                    pass
+                    if self.path_enable:
+                        self.path.header.stamp = self.get_clock().now().to_msg()
+                        self.path.poses.append(self.pose)
+                        # Limitar tamaño para eficiencia
+                        if len(self.path.poses) > self.max_path_length:
+                            self.path.poses.pop(0)  # Eliminar el punto más antiguo
+                        self.path_pub.publish(self.path)
             except:
-                self.get_logger().error('Fail get_pose()')
-                self.pub_pose_.publish(self.pose)
                 pass
 
-            if self.neighbour_update and self.onboard:
-                self.neighbour_update = False
-                for agent in self.agent_list:
-                    command = "m " + str(agent.idn) + " " + str(round(agent.pose.pose.position.x,3)) + " " + str(round(agent.pose.pose.position.y,3)) + " " + str(round(agent.pose.pose.position.z,3))
-                    self.sock.sendall(bytes(command, 'utf-8'))
-                    time.sleep(0.05)
-            
+            # TO-DO
+            # if self.neighbour_update and self.onboard:
+            #     self.neighbour_update = False
+            #     for agent in self.agent_list:
+            #         command = "m " + str(agent.idn) + " " + str(round(agent.pose.pose.position.x,3)) + " " + str(round(agent.pose.pose.position.y,3)) + " " + str(round(agent.pose.pose.position.z,3))
+            #         self.sock.sendall(bytes(command, 'utf-8'))
+            #         time.sleep(0.05)
+       
+    def order_callback(self, msg):
+        self.get_logger().debug('Order: "%s"' % msg.data)
+        if msg.data == 'formation_run' and self.onboard:
+            if self.config['task']['enable']:
+                self.formation_bool = True
+                if self.onboard:
+                    command = b"f \n"
+                    self.send_command(command)
+        elif msg.data == 'formation_stop':
+            self.formation_bool = False
+            if self.onboard:
+                command = b"f \n"
+                self.send_command(command)
+        elif msg.data == 'rele':
+            if self.rele:
+                self.rele = False
+            else:
+                self.rele = True
+            command = b"r \n"
+            self.send_command(command)
+        else:
+            self.get_logger().error('"%s": Unknown order' % (msg.data))
+    
     def get_data(self):
         command = 'get_data'
         try:
@@ -522,18 +545,44 @@ class KheperaIVDriver(Node):
             self.get_logger().error('Fail get_data()')
             pass
 
-    def iterate(self):
-        self.get_pose()
-        # self.task_formation_distance()
-        # time = self.get_clock().now().to_msg()
-        # delay = (time.sec + (time.nanosec/1000000000)) - self.time
-        # self.get_logger().info('Delay: %.4f s' % (delay))
-        
-        # command = "i " + str(round(self.pose.position.x,3)) + " " + str(round(self.pose.position.y,3))+ " " + str(round(self.theta ,3))
-        # self.sock.sendall(bytes(command, 'utf-8'))
+    def get_imu(self):
+        if self.connected:
+            try:
+                self.send_command("s")
+                data = self.sock.recv(1024).decode('utf-8').strip()
+                if data:
+                    ax, ay, az, wx, wy, wz = map(float, data.split(','))
+                msg = Imu()
+                msg.linear_acceleration = Vector3(x=ax, y=ay, z=az)
+                msg.angular_velocity = Vector3(x=wx, y=wy, z=wz)
+                msg.header.stamp = self.get_clock().now().to_msg()
+                msg.header.frame_id = self.id+'/base_link'
+                self.imu_pub.publish(msg)
+                # self.get_logger().info('Sensors: %s' % data)
+            except Exception as e:
+                self.get_logger().warn(f"Error obteniendo imu: {str(e)}")
+                self.connected = False
+
+    def get_us(self):
+        if self.connected and False:
+            try:
+                self.send_command("u")
+                data = self.sock.recv(1024).decode('utf-8').strip()
+                if data:
+                    ax, ay, az, wx, wy, wz = map(float, data.split(','))
+                msg = Imu()
+                msg.linear_acceleration = Vector3(x=ax, y=ay, z=az)
+                msg.angular_velocity = Vector3(x=wx, y=wy, z=wz)
+                msg.header.stamp = self.get_clock().now().to_msg()
+                msg.header.frame_id = self.id+'/base_link'
+                self.imu_pub.publish(msg)
+                self.get_logger().info('Sensors: %s' % data)
+            except Exception as e:
+                self.get_logger().warn(f"Error obteniendo US: {str(e)}")
+                self.connected = False
 
     ###############
-    #    Tasks    #
+    #    Tasks    # TO-DO
     ###############
     def distance_gradient_controller(self):
         if self.formation_bool:
@@ -845,10 +894,15 @@ class KheperaIVDriver(Node):
 def main(args=None):
     rclpy.init(args=args)
     khepera_driver = KheperaIVDriver()
-    rclpy.spin(khepera_driver)
 
-    khepera_driver.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(khepera_driver)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        khepera_driver.destroy_node()
+        rclpy.shutdown()
+
 
 
 if __name__ == '__main__':
