@@ -1,4 +1,7 @@
 # uned_kheperaIV_ros_pkg
+
+EN DESARROLLO ...
+
 Repositorio con los paquetes de ROS2 y ficheros de configuración para la teleoperación y simulación del robot móvil diferencial Khepera IV en ROS, Gazebo y Matlab. La finalidad es obtener una herramienta Hardware-in-the-Loop que sea facilmente escalable y mantenible.
 
 #### Estructura 
@@ -31,7 +34,11 @@ echo "source install/setup.bash" >> ~/.bashrc
 ```
 
 ## Uso 🔧
+```
+ros2 launch uned_kheperaiv_config experience.launch.py config_file:=Demo_teleop_webots.yaml
+```
 ### Simulador
+TO-DO
 Las simulaciones se hacen sobre Gazebo. El modelo sdf está operativo en el paquete uned_kheperaIV_config pero los plugins para los actuadores y sensores aún no se han actualizado. 
 #### Exclusivo en ROS
 TO-DO

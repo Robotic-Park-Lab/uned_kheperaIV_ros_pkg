@@ -1,0 +1,298 @@
+# Default Khepera IV demo teleoperation
+
+Operation:
+  mode: virtual     # physical, virtual, hybrid
+  tool: Webots              # Gazebo, Webots
+  world: RoboticPark_4KheperaIV.wbt 
+
+Experience:
+  type: formation           # identification, formation, navigation
+
+Architecture: 
+  mode: centralized   # centralized, distributed_ros2, distributed
+  node: 
+    executable: centralized_formation_controller
+    name: formation_controller
+    pkg: uned_kheperaiv_task
+
+CPU_Monitoring: 
+  enable: True
+  node: 
+    executable: measure_process
+    name: benchmark
+    pkg: measure_process_ros2_pkg
+  processes: webots-bin, driver, ros2
+
+Interface: 
+  enable: False
+  rviz2: 
+    enable: False
+    node: 
+      executable: rviz2
+      name: rviz2
+      pkg: rviz2
+    file: default.rviz
+  rqt: 
+    enable: True
+    node: 
+      executable: rqt_gui
+      name: interface
+      pkg: rqt_gui
+    file: default.perspective
+  own: 
+    enable: False
+    node:
+      name:
+      pkg:
+    file:
+
+Data_Logging: 
+  enable: False
+  all: True
+  name: date
+  topics: /ros2_cpu /cpu_stats
+
+Robots:
+  Robot01:
+    type: virtual
+    name: khepera01
+    control_mode: HighLevel
+    positioning: Intern
+    pose: 1.47 0.02 0.0 # x, y, theta
+    agent_ip: '192.168.0.21'
+    port_number: 50000
+    controller:
+      type: ipc
+      enable: True
+      protocol: Continuous
+      period: 0.01
+      threshold:
+        type: Constant
+        co: 0.01
+        ai: 0.0
+    communication:
+      type: Continuous
+      threshold:
+        type: Constant
+        co: 0.01
+        ai: 0.0
+    local_pose:
+      enable: True
+      path: True
+      T: 100
+    local_twist:
+      enable: False
+      T: 50
+    data:
+      enable: False
+      T: 20
+    mars_data:
+      enable: False
+      T: 50
+    task: 
+      enable: True
+      T: 100
+      Onboard: True
+      controller:
+        type: gradient
+        protocol: Continuous
+        period: 0.1
+        upperLimit: 0.1
+        lowerLimit: -0.1
+        gain: 0.05
+        threshold:
+            type: Constant
+            co: 0.01
+            ai: 0.0
+      role: consensus
+      type: distance
+      relationship: 'khepera02_0.6, khepera03_0.8485, khepera04_0.6'
+
+  Robot02:
+    type: virtual
+    name: khepera02
+    control_mode: HighLevel
+    positioning: Intern
+    pose: 0.0 1.47 0.0 # x, y, theta
+    agent_ip: '192.168.0.22'
+    port_number: 50000
+    controller:
+      type: ipc
+      enable: True
+      protocol: Continuous
+      period: 0.01
+      threshold:
+        type: Constant
+        co: 0.01
+        ai: 0.0
+    communication:
+      type: Continuous
+      threshold:
+        type: Constant
+        co: 0.01
+        ai: 0.0
+    local_pose:
+      enable: True
+      path: True
+      T: 100
+    local_twist:
+      enable: False
+      T: 50
+    data:
+      enable: False
+      T: 20
+    mars_data:
+      enable: False
+      T: 50
+    task: 
+      enable: True
+      T: 100
+      Onboard: True
+      controller:
+        type: gradient
+        protocol: Continuous
+        period: 0.1
+        upperLimit: 0.1
+        lowerLimit: -0.1
+        gain: 0.05
+        threshold:
+            type: Constant
+            co: 0.01
+            ai: 0.0
+      role: consensus
+      type: distance
+      relationship: 'khepera01_0.6, khepera03_0.6, khepera04_0.8485'
+
+  Robot03:
+    type: virtual
+    name: khepera03
+    control_mode: HighLevel
+    positioning: Intern
+    pose: -1.47 -0.03 0.0 # x, y, theta
+    agent_ip: '192.168.0.19' # khepera04:20"
+    port_number: 50000
+    controller:
+      type: ipc
+      enable: True
+      protocol: Continuous
+      period: 0.01
+      threshold:
+        type: Constant
+        co: 0.01
+        ai: 0.0
+    communication:
+      type: Continuous
+      threshold:
+        type: Constant
+        co: 0.01
+        ai: 0.0
+    local_pose:
+      enable: True
+      path: True
+      T: 100
+    local_twist:
+      enable: False
+      T: 50
+    data:
+      enable: False
+      T: 20
+    mars_data:
+      enable: False
+      T: 50
+    task: 
+      enable: True
+      T: 100
+      Onboard: True
+      controller:
+        type: gradient
+        protocol: Continuous
+        period: 0.1
+        upperLimit: 0.1
+        lowerLimit: -0.1
+        gain: 0.05
+        threshold:
+            type: Constant
+            co: 0.01
+            ai: 0.0
+      role: consensus
+      type: distance
+      relationship: 'khepera01_0.8485, khepera02_0.6, khepera04_0.6'
+
+  Robot04:
+    type: virtual
+    name: khepera04
+    control_mode: HighLevel
+    positioning: Intern
+    pose: -0.03 -1.53 0.0 # x, y, theta
+    agent_ip: '192.168.0.20'
+    port_number: 50000
+    controller:
+      type: ipc
+      enable: True
+      protocol: Continuous
+      period: 0.01
+      threshold:
+        type: Constant
+        co: 0.01
+        ai: 0.0
+    communication:
+      type: Continuous
+      threshold:
+        type: Constant
+        co: 0.01
+        ai: 0.0
+    local_pose:
+      enable: True
+      path: True
+      T: 100
+    local_twist:
+      enable: False
+      T: 50
+    data:
+      enable: False
+      T: 20
+    mars_data:
+      enable: False
+      T: 50
+    task: 
+      enable: True
+      T: 100
+      Onboard: True
+      controller:
+        type: gradient
+        protocol: Continuous
+        period: 0.1
+        upperLimit: 0.1
+        lowerLimit: -0.1
+        gain: 0.05
+        threshold:
+            type: Constant
+            co: 0.01
+            ai: 0.0
+      role: consensus
+      type: distance
+      relationship: 'khepera01_0.6, khepera02_0.8485, khepera03_0.6'
+
+
+Supervisor:
+  enable: False
+  node: 
+    executable: supervisor_node
+    name: supervisor
+    pkg: mars_supervisor_pkg
+    file: demo_formation_topics.yaml
+
+Other:
+  OpenLoop:
+    enable: False
+    executable: open_loop_signal
+    name: open_loop
+    pkg: uned_swarm_task
+    file: file.yaml
+
+  Vicon:
+    enable: False
+    executable: vicon_client
+    name: vicon_node
+    pkg: vicon_receiver
+    file: vicon_config.yaml

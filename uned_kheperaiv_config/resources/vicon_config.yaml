@@ -1,0 +1,4 @@
+System:
+  hostname: '10.196.92.136'
+  buffer_size: 200
+  namespace: vicon
