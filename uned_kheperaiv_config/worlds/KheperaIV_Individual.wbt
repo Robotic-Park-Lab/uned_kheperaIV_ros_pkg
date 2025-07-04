@@ -1,65 +1,65 @@
-#VRML_SIM R2023b utf8
+#VRML_SIM R2025a utf8
 
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/floors/protos/Floor.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
-EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/appearances/protos/Parquetry.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/robots/k-team/khepera4/protos/Khepera4.proto"
 
 WorldInfo {
-	info [
-		 "Robotic Park World. KheperaIV Individual"
-	]
-	basicTimeStep 20
+  info [
+    "Robotic Park World. KheperaIV Individual"
+  ]
+  basicTimeStep 20
 }
 Viewpoint {
-	fieldOfView 1
-	orientation 0.08257814004826021 0.7347446275807098 -0.6732987323821825 0.7219016991902246
-	position -6.686523789804856 3.246953734178069 5.0217815008034
+  fieldOfView 1
+  orientation 0.08257814004826021 0.7347446275807098 -0.6732987323821825 0.7219016991902246
+  position -3.840627298410431 1.6209857742730043 3.1324720241747936
 }
-TexturedBackground {}
-TexturedBackgroundLight {}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
 DirectionalLight {
-    ambientIntensity 1
-    direction 6 -16 -10
-    intensity 4
+  ambientIntensity 1
+  direction 6 -16 -10
+  intensity 4
 }
 Floor {
-    translation -1 0 0
-    size 8 6
-    appearance Parquetry {
-        type "chequered"
-        IBLStrength 0
-    }
+  translation -1 0 0
+  size 8 6
+  appearance Parquetry {
+    type "chequered"
+    IBLStrength 0
+  }
 }
 Solid {
-    rotation 0 0 1 3.14159
-    children [
-        CadShape {
-        url [
-            "meshes/RoboticPark.dae"
-        ]
-        }
-    ]
-    contactMaterial ""
-    boundingObject Mesh {
-         url [
-        "meshes/RoboticPark_new.dae"
-        ]
+  rotation 0 0 1 3.14159
+  children [
+    CadShape {
+      url [
+        "meshes/RoboticPark.dae"
+      ]
     }
-    radarCrossSection 1
-}
-
-Khepera4 {
-    translation 0.0 0.0 0.015
-	name "khepera01"
-	controller "<extern>"
-    turretSlot [
-        GPS {
-        }
-        InertialUnit {
-        }
+  ]
+  contactMaterial ""
+  boundingObject Mesh {
+    url [
+      "meshes/RoboticPark_new.dae"
     ]
-    supervisor TRUE
+  }
+  radarCrossSection 1
+}
+Khepera4 {
+  translation 0 0 0.015
+  name "khepera01"
+  controller "<extern>"
+  supervisor TRUE
+  turretSlot [
+    GPS {
+    }
+    InertialUnit {
+    }
+  ]
 }
