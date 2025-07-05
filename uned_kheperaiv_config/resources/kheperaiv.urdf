@@ -1,0 +1,24 @@
+<?xml version="1.0" ?>
+<robot name="khepera00">
+    <webots>
+        <device reference="camera" type="Camera">
+            <ros>
+                <alwaysOn>false</alwaysOn>
+                <enabled>config_cam</enabled>
+                <update_rate>10</update_rate>
+            </ros>
+        </device>
+        <plugin type="webots_ros2_driver::Ros2IMU">
+            <enabled>true</enabled>
+            <topicName>imu</topicName>
+            <alwaysOn>true</alwaysOn>
+            <frameName>base_link/imu_link</frameName>
+            <inertialUnitName>inertial unit</inertialUnitName>
+            <gyroName>gyro</gyroName>
+        </plugin>
+        <plugin type="uned_kheperaiv_webots.khepera_driver.KheperaWebotsDriver">
+            <name_id>name_id_value</name_id>
+            <config_file>config_file_path</config_file>
+        </plugin>
+    </webots>
+</robot>

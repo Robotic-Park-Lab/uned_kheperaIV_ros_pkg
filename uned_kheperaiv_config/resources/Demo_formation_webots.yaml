@@ -24,21 +24,21 @@ CPU_Monitoring:
   processes: webots-bin, driver, ros2
 
 Interface: 
-  enable: False
+  enable: True
   rviz2: 
-    enable: False
+    enable: True
     node: 
       executable: rviz2
       name: rviz2
       pkg: rviz2
-    file: default.rviz
+    file: formation_distance_four.rviz
   rqt: 
     enable: True
     node: 
       executable: rqt_gui
       name: interface
       pkg: rqt_gui
-    file: default.perspective
+    file: demo_formation_khepera.perspective
   own: 
     enable: False
     node:
@@ -61,6 +61,7 @@ Robots:
     pose: 1.47 0.02 0.0 # x, y, theta
     agent_ip: '192.168.0.21'
     port_number: 50000
+    camera: 'false'
     controller:
       type: ipc
       enable: True
@@ -87,7 +88,7 @@ Robots:
       enable: False
       T: 20
     mars_data:
-      enable: False
+      enable: True
       T: 50
     task: 
       enable: True
@@ -116,6 +117,7 @@ Robots:
     pose: 0.0 1.47 0.0 # x, y, theta
     agent_ip: '192.168.0.22'
     port_number: 50000
+    camera: 'false'
     controller:
       type: ipc
       enable: True
@@ -142,7 +144,7 @@ Robots:
       enable: False
       T: 20
     mars_data:
-      enable: False
+      enable: True
       T: 50
     task: 
       enable: True
@@ -171,6 +173,7 @@ Robots:
     pose: -1.47 -0.03 0.0 # x, y, theta
     agent_ip: '192.168.0.19' # khepera04:20"
     port_number: 50000
+    camera: 'false'
     controller:
       type: ipc
       enable: True
@@ -197,7 +200,7 @@ Robots:
       enable: False
       T: 20
     mars_data:
-      enable: False
+      enable: True
       T: 50
     task: 
       enable: True
@@ -226,6 +229,7 @@ Robots:
     pose: -0.03 -1.53 0.0 # x, y, theta
     agent_ip: '192.168.0.20'
     port_number: 50000
+    camera: 'false'
     controller:
       type: ipc
       enable: True
@@ -252,7 +256,7 @@ Robots:
       enable: False
       T: 20
     mars_data:
-      enable: False
+      enable: True
       T: 50
     task: 
       enable: True

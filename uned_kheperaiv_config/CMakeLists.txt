@@ -33,6 +33,7 @@ install(
     worlds
     resources
     rviz
+    rqt
   DESTINATION share/${PROJECT_NAME}
 )
 

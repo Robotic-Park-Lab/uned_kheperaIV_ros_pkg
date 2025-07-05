@@ -28,8 +28,7 @@ La configuración del entorno de trabajo para el paquete desarrollado se muestra
 mkdir -p khepera_ws/src && cd khepera_ws/src
 git clone -b humble-dev https://github.com/FranciscoJManasAlvarez/uned_kheperaIV_ros_pkg 
 cd ..
-colcon build
-echo "source install/setup.bash" >> ~/.bashrc
+colcon build --symlink-install --packages-select uned_kheperaiv_config uned_kheperaiv_driver uned_khepera_description uned_kheperaiv_task uned_kheperaiv_webots roboticpark_config && source install/setup.bash
 ```
 
 ## Uso 🔧

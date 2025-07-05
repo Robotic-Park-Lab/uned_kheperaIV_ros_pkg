@@ -26,7 +26,7 @@ CPU_Monitoring:
 Interface: 
   enable: True
   rviz2: 
-    enable: False
+    enable: True
     node: 
       executable: rviz2
       name: rviz2
@@ -61,6 +61,7 @@ Robots:
     pose: 0.0 0.0 0.0 # x, y, theta
     agent_ip: '192.168.0.21' # "khepera01:21 ; khepera02:22 ; khepera03:19 ; khepera04:20"
     port_number: 50000
+    camera: 'true'
     controller:
       type: ipc
       enable: True
