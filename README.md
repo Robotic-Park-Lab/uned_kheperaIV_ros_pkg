@@ -1,5 +1,7 @@
 # uned_kheperaIV_ros_pkg
 
+> 📖 Para entender las ramas de este repo y la guía de contribución, consulta la rama [`doc`](https://github.com/Robotic-Park-Lab/uned_kheperaIV_ros_pkg/tree/doc).
+
 EN DESARROLLO ...
 
 Repositorio con los paquetes de ROS2 y ficheros de configuración para la teleoperación y simulación del robot móvil diferencial Khepera IV en ROS, Gazebo y Matlab. La finalidad es obtener una herramienta Hardware-in-the-Loop que sea facilmente escalable y mantenible.
