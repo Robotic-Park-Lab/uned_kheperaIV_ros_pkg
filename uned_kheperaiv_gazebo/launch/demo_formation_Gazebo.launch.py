@@ -12,9 +12,14 @@ from launch.actions import ExecuteProcess
 
 def generate_launch_description():
     general_config_dir = get_package_share_directory('uned_kheperaiv_config')
-    model_dir = get_package_share_directory('uned_kheperaiv_config')
-    config_path = os.path.join(general_config_dir, 'resources', 'demo_formation.yaml')
-    rviz_config_path = os.path.join(general_config_dir, 'rviz', 'test.rviz')
+    # Same real bugs fixed here as in multiple_robot_Gazebo.launch.py (see
+    # that file's comment for the detail): wrong yaml/rviz filenames, and
+    # an individual per-robot config_path that doesn't exist as a yaml key
+    # in the experience file -- gazebo_driver.py needs its own small
+    # defaults file (khepera_gazebo_default.yaml, new).
+    config_path = os.path.join(general_config_dir, 'resources', 'Demo_formation_webots.yaml')
+    individual_config_path = os.path.join(general_config_dir, 'resources', 'khepera_gazebo_default.yaml')
+    rviz_config_path = os.path.join(general_config_dir, 'rviz', 'default.rviz')
     use_sim_time = LaunchConfiguration('use_sim_time', default=True)
 
     world_path = os.path.join(general_config_dir, 'worlds', 'UNED_RoboticParkLab_invert.world')
@@ -26,14 +31,13 @@ def generate_launch_description():
 
     with open(config_path) as f:
         data = yaml.load(f, Loader=SafeLoader)
-        for key, robot in data.items():
+        for key, robot in data['Robots'].items():
             print("###  "+robot['name']+"  ###")
-            individual_config_path = os.path.join(general_config_dir, 'resources', robot['config_path'])
 
-            urdf_path = os.path.join(model_dir, 'urdf', robot['name']+'.urdf')
-            pose = robot['pose'].split(', ')
+            urdf_path = os.path.join(general_config_dir, 'urdf', robot['name']+'.urdf')
+            pose = robot['pose'].split()
             robot_node_list.append(Node(package='uned_kheperaiv_gazebo', executable='inject_entity.py', output='screen',
-                                            arguments=[urdf_path, pose[0], pose[1], '0.05', '0']),
+                                            arguments=[urdf_path, pose[0], pose[1], '0.05', pose[2]]),
             )
             robot_node_list.append(Node(package='uned_kheperaiv_task', 
                                         executable='gazebo_driver',

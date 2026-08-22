@@ -1,0 +1,42 @@
+# Per-robot defaults consumed by uned_kheperaiv_task/gazebo_driver.py
+# (KheperaIVDriver.initialize() does `self.config = documents[self.id]`,
+# self.id being the robot name, e.g. khepera01). Added while updating
+# uned_kheperaiv_gazebo to work with the currently installed Gazebo
+# Classic 11 -- this file did not exist before; gazebo_driver.py had no
+# valid config to actually load.
+khepera01:
+  task:
+    enable: false
+    type: Null
+    relationship: Null
+  communication:
+    type: Continuous
+    threshold:
+      co: 0.01
+khepera02:
+  task:
+    enable: false
+    type: Null
+    relationship: Null
+  communication:
+    type: Continuous
+    threshold:
+      co: 0.01
+khepera03:
+  task:
+    enable: false
+    type: Null
+    relationship: Null
+  communication:
+    type: Continuous
+    threshold:
+      co: 0.01
+khepera04:
+  task:
+    enable: false
+    type: Null
+    relationship: Null
+  communication:
+    type: Continuous
+    threshold:
+      co: 0.01
