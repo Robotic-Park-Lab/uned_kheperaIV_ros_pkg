@@ -3,9 +3,21 @@
 <package format="3">
   <name>uned_kheperaiv_driver</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="fma527@ual.es">kiko-hp-omen</maintainer>
-  <license>TODO: License declaration</license>
+  <description>TCP client node that talks to the C program running on the Khepera IV's onboard Linux (see scripts/server.c) and exposes it as a ROS 2 driver</description>
+  <maintainer email="fma527@ual.es">Francisco José Mañas Álvarez</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>builtin_interfaces</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf_transformations</depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -86,7 +86,14 @@ def get_ros2_nodes(context, *args):
     #     Architecture     #
     #----------------------#
     if documents['Architecture']['mode'] == 'centralized':
-        controller_config_path = os.path.join(general_package_dir, 'resources', documents['Architecture']['node']['file'])
+        # 'file' is optional: falls back to the experience file itself if the
+        # architecture node doesn't need a separate config (real bug fixed
+        # here -- documents['Architecture']['node']['file'] used to raise a
+        # KeyError on any experience that didn't set it, e.g.
+        # Demo_formation_central_webots.yaml).
+        controller_config_path = os.path.join(
+            general_package_dir, 'resources',
+            documents['Architecture']['node'].get('file', file_name))
         node_list.append(Node(
             package=documents['Architecture']['node']['pkg'],
             executable=documents['Architecture']['node']['executable'],
@@ -104,8 +111,7 @@ def get_ros2_nodes(context, *args):
     #----------------#
     #     Robots     #
     #----------------#
-    physical_crazyflie_list = ''
-    physical_khepera_list = ''
+    physical_khepera_list = []
     for robot in documents['Robots']:
         if 'khepera' in documents['Robots'][robot]['name']:
             robot_description = os.path.join(general_package_dir, 'resources', 'kheperaiv.urdf')
@@ -115,7 +121,11 @@ def get_ros2_nodes(context, *args):
                 aux = robot_desc.replace("khepera00", documents['Robots'][robot]['name'])
                 aux = aux.replace("name_id_value", documents['Robots'][robot]['name'])
                 aux = aux.replace("config_file_path", config_path)
-                enable = documents['Robots'][robot]['camera']
+                # 'camera' is optional, defaults to disabled (real bug fixed
+                # here -- a bare ['camera'] used to raise a KeyError on any
+                # experience that didn't set it per robot, e.g.
+                # Demo_formation_central_webots.yaml).
+                enable = documents['Robots'][robot].get('camera', 'false')
                 aux = aux.replace("config_cam", enable)
                 robot_controller = WebotsController(
                             robot_name=documents['Robots'][robot]['name'],
@@ -129,14 +139,11 @@ def get_ros2_nodes(context, *args):
                 node_list.append(robot_controller)
 
             if not documents['Robots'][robot]['type'] == 'virtual':
-                if physical_khepera_list == '':
-                    physical_khepera_list += documents['Robots'][robot]['name']
-                else:
-                    physical_khepera_list += ', '+documents['Robots'][robot]['name']
-    
+                physical_khepera_list.append(documents['Robots'][robot]['name'])
+
     print("###  Physical Robots  ###")
     print(physical_khepera_list)
-    if not physical_khepera_list == '':
+    if physical_khepera_list:
         for robot_id in physical_khepera_list:
             node_list.append(Node(
                     package='uned_kheperaiv_driver',

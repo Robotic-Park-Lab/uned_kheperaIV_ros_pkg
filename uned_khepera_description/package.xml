@@ -3,9 +3,9 @@
 <package format="3">
   <name>uned_khepera_description</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="fjmanas@dia.uned.es">kiko</maintainer>
-  <license>TODO: License declaration</license>
+  <description>URDF/Xacro description of the Khepera IV robot (legacy Gazebo path)</description>
+  <maintainer email="fjmanas@dia.uned.es">Francisco José Mañas Álvarez</maintainer>
+  <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

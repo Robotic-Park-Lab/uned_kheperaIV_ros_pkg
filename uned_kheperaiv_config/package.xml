@@ -3,11 +3,15 @@
 <package format="3">
   <name>uned_kheperaiv_config</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Environment configuration for the Khepera IV: 3D models, the unified experience.launch.py launch file, and RViz/RQT resources</description>
   <maintainer email="fma527@ual.es">Francisco José Mañas Álvarez</maintainer>
-  <license>TODO: License declaration</license>
+  <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- experience.launch.py imports these for real -->
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>webots_ros2_driver</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

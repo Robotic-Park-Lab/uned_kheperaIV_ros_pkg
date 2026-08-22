@@ -3,9 +3,9 @@
 <package format="3">
   <name>uned_khepera_gazebo</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="fjmanas@dia.uned.es">Kiko</maintainer>
-  <license>TODO: License declaration</license>
+  <description>Gazebo simulation launch/plugins for the Khepera IV robot (legacy path, superseded by uned_kheperaiv_webots -- actuator/sensor plugins here are not up to date)</description>
+  <maintainer email="fjmanas@dia.uned.es">Francisco José Mañas Álvarez</maintainer>
+  <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
