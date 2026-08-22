@@ -3,7 +3,7 @@
 <package format="3">
   <name>uned_kheperaiv_task</name>
   <version>0.0.0</version>
-  <description>High-level mission/task nodes for the Khepera IV: distance-based and shape-based formation control (Webots), and a Gazebo-specific formation driver (legacy path)</description>
+  <description>High-level mission/task nodes for the Khepera IV: distance-based and shape-based formation control (Webots), and a Gazebo formation driver</description>
   <maintainer email="fjmanas@dia.uned.es">Francisco José Mañas Álvarez</maintainer>
   <license>BSD-3-Clause</license>
 
