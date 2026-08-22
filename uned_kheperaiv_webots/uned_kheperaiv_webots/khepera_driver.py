@@ -357,7 +357,7 @@ class KheperaWebotsDriver:
         self.node.destroy_subscription(self.sub_goalpose)
         self.publisher_goalpose = self.node.create_publisher(PoseStamped, self.id + '/goal_pose', 10)
         self.publisher_global_error_ = self.node.create_publisher(Float64, self.id + '/global_error', 10)
-        self.node.get_logger().debug('Task %s by %s' % (task_type, role))
+        self.node.get_logger().info('Task %s by %s' % (task_type, role))
         
         self.event_x = self.node.create_publisher(Bool, self.id + '/formation/event_x', 10)
         self.event_y = self.node.create_publisher(Bool, self.id + '/formation/event_y', 10)
@@ -431,7 +431,76 @@ class KheperaWebotsDriver:
                     robot = Agent(self, self.node, aux[0], d = float(aux[1]))
                     self.node.get_logger().debug('Agent: %s: Neighbour: %s \td: %s' % (self.id, aux[0], aux[1]))
                 self.agent_list.append(robot)
+        elif task_type == 'reactive':
+            self.node.create_timer(self.task_period, self.reactive_controller)
+            for rel in self.relationship:
+                aux = rel.split('_')
+                robot = Agent(self, self.node, aux[0], d = float(aux[1]))
+                self.agent_list.append(robot)
 
+    def reactive_controller(self):
+        if not self.formation:
+            return
+        self.position_controller = True
+        dx = 0.0
+        dy = 0.0
+        
+        k_rep = 1.0 # ganancia repulsión
+        influence_radius = 4 # radio de influencia
+
+        for agent in self.agent_list:
+            error_x = self.pose.position.x - agent.pose.position.x
+            error_y = self.pose.position.y - agent.pose.position.y
+            dist = sqrt(error_x**2 + error_y**2)
+            if dist < influence_radius:
+                # Repulsión tipo potencial inverso
+                force = k_rep * (dist) / (dist**3)
+                dx += force * (error_x/dist)
+                dy += force * (error_y/dist)
+
+        # dx = dx*1/8
+        # dy = dy*1/8
+        # Saturación de velocidad
+        max_step = 0.6
+        norm = sqrt(dx**2 + dy**2)
+
+        if norm > max_step:
+            dx = dx/norm * max_step
+            dy = dy/norm * max_step
+        if norm < 0.05:
+            dx = 0.0
+            dy = 0.0
+
+        self.node.get_logger().info('Target: X: %.3f \ty: %.3f' % (dx, dy))
+        # dx = 0.0
+        # dy = 0.0
+
+        # Orientación coherente con el movimiento
+        if norm > 0.01:
+            yaw = atan2(dy, dx)
+        else:
+            angles = tf_transformations.euler_from_quaternion((
+                self.pose.orientation.x,
+                self.pose.orientation.y,
+                self.pose.orientation.z,
+                self.pose.orientation.w))
+            yaw = angles[2]
+
+        q = tf_transformations.quaternion_from_euler(0.0, 0.0, yaw)
+
+        self.target_pose.pose.orientation.x = q[0]
+        self.target_pose.pose.orientation.y = q[1]
+        self.target_pose.pose.orientation.z = q[2]
+        self.target_pose.pose.orientation.w = q[3]
+
+        # Nueva posición objetivo
+        self.target_pose.pose.position.x = self.pose.position.x + dx
+        self.target_pose.pose.position.y = self.pose.position.y + dy
+        self.target_pose.pose.position.z = self.pose.position.z
+        self.target_pose.header.stamp = self.node.get_clock().now().to_msg()
+
+        self.publisher_goalpose.publish(self.target_pose)
+    
     def distance_gradient_controller(self):
         if self.formation:
             msg_error = Float64()
@@ -1121,6 +1190,8 @@ class KheperaWebotsDriver:
             w = Kp*sin(eo) + Ki*self.eomas*0.003
             V = min(K1*d*p,Vmax)
 
+        if V>1.0:
+            V=1.0
         ## Cmd_Vel
         out = Twist()
         out.linear.x = V

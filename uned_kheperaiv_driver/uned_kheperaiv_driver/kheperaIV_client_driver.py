@@ -12,6 +12,7 @@ from nav_msgs.msg import Path
 from visualization_msgs.msg import Marker
 from math import sqrt, cos, sin, atan2
 from tf2_ros import TransformBroadcaster
+import tf_transformations
 from tf_transformations import euler_from_quaternion, quaternion_from_euler
 from builtin_interfaces.msg import Time
 
@@ -264,6 +265,7 @@ class KheperaIVDriver(Node):
         # Set Formation TO-DO: Improve
         if self.config['task']['enable']:
             self.publisher_goalpose = self.create_publisher(PoseStamped, 'goal_pose', 10)
+            # self.create_subscription(PoseStamped, 'target_pose', self.goalpose_callback, 1)
         else:
             self.create_subscription(PoseStamped, 'goal_pose', self.goalpose_callback, 1)
 
@@ -317,6 +319,12 @@ class KheperaIVDriver(Node):
                     else:
                         robot = Agent(self, aux[0], d = float(aux[1]))
                         self.get_logger().info('Agent: %s: Neighbour: %s \td: %s' % (self.id, aux[0], aux[1]))
+                    self.agent_list.append(robot)
+            elif self.config['task']['type'] == 'reactive':
+                self.create_timer(self.controller['period'], self.reactive_controller)
+                for rel in self.relationship:
+                    aux = rel.split('_')
+                    robot = Agent(self, aux[0], d = float(aux[1]))
                     self.agent_list.append(robot)
             elif self.config['task']['type'] == 'pose':
                 if self.controller_type == 'gradient':
@@ -729,6 +737,70 @@ class KheperaIVDriver(Node):
             self.target_pose.pose.orientation.w = q[3]
             self.target_pose.header.stamp = self.get_clock().now().to_msg()
             self.publisher_goalpose.publish(self.target_pose)
+
+    def reactive_controller(self):
+        if not self.formation_bool:
+            return
+        
+        dx = 0.0
+        dy = 0.0
+        
+        k_rep = 1.0 # ganancia repulsión
+        influence_radius = 4 # radio de influencia
+
+        for agent in self.agent_list:
+            error_x = self.pose.pose.position.x - agent.pose.position.x
+            error_y = self.pose.pose.position.y - agent.pose.position.y
+            dist = sqrt(error_x**2 + error_y**2)
+            if dist < influence_radius:
+                # Repulsión tipo potencial inverso
+                force = k_rep * (dist) / (dist**3)
+                dx += force * (error_x/dist)
+                dy += force * (error_y/dist)
+
+        # dx = dx*1/8
+        # dy = dy*1/8
+        # Saturación de velocidad
+        max_step = 0.6
+        norm = sqrt(dx**2 + dy**2)
+
+        if norm > max_step:
+            dx = dx/norm * max_step
+            dy = dy/norm * max_step
+        if norm < 0.05:
+            dx = 0.0
+            dy = 0.0
+
+        self.get_logger().info('Target: X: %.3f \ty: %.3f' % (dx, dy))
+        # dx = 0.0
+        # dy = 0.0
+
+        # Orientación coherente con el movimiento
+        if norm > 0.01:
+            yaw = atan2(dy, dx)
+        else:
+            angles = tf_transformations.euler_from_quaternion((
+                self.pose.pose.orientation.x,
+                self.pose.pose.orientation.y,
+                self.pose.pose.orientation.z,
+                self.pose.pose.orientation.w))
+            yaw = angles[2]
+
+        q = tf_transformations.quaternion_from_euler(0.0, 0.0, yaw)
+
+        self.target_pose.pose.orientation.x = q[0]
+        self.target_pose.pose.orientation.y = q[1]
+        self.target_pose.pose.orientation.z = q[2]
+        self.target_pose.pose.orientation.w = q[3]
+
+        # Nueva posición objetivo
+        self.target_pose.pose.position.x = self.pose.position.x + dx
+        self.target_pose.pose.position.y = self.pose.position.y + dy
+        self.target_pose.pose.position.z = self.pose.position.z
+        self.target_pose.header.stamp = self.get_clock().now().to_msg()
+
+        self.publisher_goalpose.publish(self.target_pose)
+        self.goalpose_callback(self.target_pose)
 
     def pose_gradient_controller(self):
         if self.formation_bool:
