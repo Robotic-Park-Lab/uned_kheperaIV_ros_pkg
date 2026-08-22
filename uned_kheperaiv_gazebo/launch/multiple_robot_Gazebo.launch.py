@@ -12,8 +12,8 @@ from launch.actions import ExecuteProcess
 
 def generate_launch_description():
     general_config_dir = get_package_share_directory('uned_kheperaiv_config')
-    model_dir = get_package_share_directory('uned_khepera_description')
-    config_path = os.path.join(general_config_dir, 'resources', 'demo_formation.yaml')
+    model_dir = get_package_share_directory('uned_kheperaiv_config')
+    config_path = os.path.join(general_config_dir, 'resources', 'demo_teleop.yaml')
     rviz_config_path = os.path.join(general_config_dir, 'rviz', 'test.rviz')
     use_sim_time = LaunchConfiguration('use_sim_time', default=True)
 
@@ -32,7 +32,7 @@ def generate_launch_description():
 
             urdf_path = os.path.join(model_dir, 'urdf', robot['name']+'.urdf')
             pose = robot['pose'].split(', ')
-            robot_node_list.append(Node(package='uned_khepera_gazebo', executable='inject_entity.py', output='screen',
+            robot_node_list.append(Node(package='uned_kheperaiv_gazebo', executable='inject_entity.py', output='screen',
                                             arguments=[urdf_path, pose[0], pose[1], '0.05', '0']),
             )
             robot_node_list.append(Node(package='uned_kheperaiv_task', 

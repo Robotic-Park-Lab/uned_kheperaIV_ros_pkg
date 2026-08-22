@@ -11,7 +11,7 @@ def generate_launch_description():
     ####### DATA INPUT ##########
     urdf_file = 'khepera_simple.urdf'
     #xacro_file = "box_bot.xacro"
-    package_description = "uned_khepera_description"
+    package_description = "uned_kheperaiv_config"
 
     ####### DATA INPUT END ##########
     print("Fetching URDF ==>")

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(uned_khepera_gazebo)
+project(uned_kheperaiv_gazebo)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)

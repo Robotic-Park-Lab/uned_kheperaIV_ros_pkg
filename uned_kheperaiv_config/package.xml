@@ -9,6 +9,11 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <!-- URDF generation (urdf/khepera.xml -> kheperaXX.urdf), merged in from
+       the former uned_khepera_description package -->
+  <depend>urdf</depend>
+  <depend>xacro</depend>
+
   <!-- experience.launch.py imports these for real -->
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>webots_ros2_driver</exec_depend>

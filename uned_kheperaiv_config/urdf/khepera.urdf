@@ -18,12 +18,12 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="package://uned_khepera_description/meshes/files/Empty_robot.dae" scale="1.0 1.0 1.0"/>
+                <mesh filename="package://uned_kheperaiv_config/meshes/files/Empty_robot.dae" scale="1.0 1.0 1.0"/>
             </geometry>
         </visual>
         <collision name='collision'>
             <geometry>
-                <mesh filename="package://uned_khepera_description/meshes/files/Empty_robot.dae" scale="1.0 1.0 1.0"/>
+                <mesh filename="package://uned_kheperaiv_config/meshes/files/Empty_robot.dae" scale="1.0 1.0 1.0"/>
             </geometry>
         </collision>
     </link>
@@ -44,12 +44,12 @@
         <visual>
             <origin rpy="-1.57070 0 0" xyz="0 0.0527 0.021"/>
             <geometry>
-                <mesh filename="package://uned_khepera_description/meshes/files/wheel.dae" scale="1.0 1.0 1.0"/>
+                <mesh filename="package://uned_kheperaiv_config/meshes/files/wheel.dae" scale="1.0 1.0 1.0"/>
             </geometry>
         </visual>
         <collision name='collision'>
             <geometry>
-                <mesh filename="package://uned_khepera_description/meshes/files/wheel.dae" scale="1.0 1.0 1.0"/>
+                <mesh filename="package://uned_kheperaiv_config/meshes/files/wheel.dae" scale="1.0 1.0 1.0"/>
             </geometry>
         </collision>
     </link>

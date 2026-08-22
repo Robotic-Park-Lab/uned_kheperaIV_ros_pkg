@@ -165,7 +165,7 @@ Visualization Manager:
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
-      Description File: /home/kiko/roboticpark_ws/src/uned_kheperaIV_ros_pkg/uned_khepera_description/urdf/khepera_simple.urdf
+      Description File: /home/kiko/roboticpark_ws/src/uned_kheperaIV_ros_pkg/uned_kheperaiv_config/urdf/khepera_simple.urdf
       Description Source: File
       Description Topic:
         Depth: 5
@@ -196,7 +196,7 @@ Visualization Manager:
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
-      Description File: /home/kiko/roboticpark_ws/src/uned_kheperaIV_ros_pkg/uned_khepera_description/urdf/khepera_simple.urdf
+      Description File: /home/kiko/roboticpark_ws/src/uned_kheperaIV_ros_pkg/uned_kheperaiv_config/urdf/khepera_simple.urdf
       Description Source: File
       Description Topic:
         Depth: 5
@@ -227,7 +227,7 @@ Visualization Manager:
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
-      Description File: /home/kiko/roboticpark_ws/src/uned_kheperaIV_ros_pkg/uned_khepera_description/urdf/khepera_simple.urdf
+      Description File: /home/kiko/roboticpark_ws/src/uned_kheperaIV_ros_pkg/uned_kheperaiv_config/urdf/khepera_simple.urdf
       Description Source: File
       Description Topic:
         Depth: 5
@@ -258,7 +258,7 @@ Visualization Manager:
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
-      Description File: /home/kiko/roboticpark_ws/src/uned_kheperaIV_ros_pkg/uned_khepera_description/urdf/khepera_simple.urdf
+      Description File: /home/kiko/roboticpark_ws/src/uned_kheperaIV_ros_pkg/uned_kheperaiv_config/urdf/khepera_simple.urdf
       Description Source: File
       Description Topic:
         Depth: 5
