@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 # Copyright 2026 Robotic Park Lab
 #
 # Redistribution and use in source and binary forms, with or without
@@ -30,53 +28,32 @@
 
 
 """
-Main window of the Khepera IV PyQt interface.
+Headless smoke test for MainWindow.
 
-Deliberately basic: no embedded rqt_robot_steering/rqt_plot/rqt_graph
-panels. The original code embedded them via xdotool + QWindow.fromWinId()
-(X11-only, and xdotool was never a declared dependency) -- same tradeoff
-already made for uned_crazyflie_gui in the sibling Crazyflie repo. See the
-"Future work" section in README.md for that fuller vision.
+Same class of bug the pre-fix `from main_ui import *` absolute import would
+have caught immediately if anything had ever tried to actually run
+interface_gui.py.
 """
 import os
-import sys
 
-import rclpy
-from PyQt5 import uic
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QApplication, QMainWindow
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from uned_kheperaiv_gui import logo_rc  # noqa: F401 -- registers the :/figs/... Qt resources
+import rclpy  # noqa: E402
+from PyQt5.QtWidgets import QApplication  # noqa: E402
 
-PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+from uned_kheperaiv_gui.interface_gui import MainWindow  # noqa: E402
 
 
-class MainWindow(QMainWindow):
-    def __init__(self, node):
-        super(MainWindow, self).__init__()
-        uic.loadUi(os.path.join(PACKAGE_DIR, 'main.ui'), self)
+def test_main_window_starts_without_crashing():
+    rclpy.init()
+    node = rclpy.create_node('test_uned_kheperaiv_gui')
+    # Keep a reference: QApplication.instance() or QApplication([]) as a bare
+    # expression gets garbage-collected immediately, crashing the next widget.
+    app = QApplication.instance() or QApplication([])  # noqa: F841
 
-        self.setWindowIcon(QIcon(':/figs/LogoRoboticPark.png'))
-        self.setWindowTitle('Robotic Park. Khepera IV')
-
-        self.node = node
-        self.Close_action.triggered.connect(self.close)
-        self.Close_action.setShortcut('Ctrl+W')
-
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = rclpy.create_node('uned_kh_interface')
-
-    app = QApplication(sys.argv)
     window = MainWindow(node)
-    window.show()
-    exit_code = app.exec_()
+
+    assert window.windowTitle() == 'Robotic Park. Khepera IV'
 
     node.destroy_node()
     rclpy.shutdown()
-    sys.exit(exit_code)
-
-
-if __name__ == '__main__':
-    main()
