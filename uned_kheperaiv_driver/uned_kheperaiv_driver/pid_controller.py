@@ -26,13 +26,12 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""
-PID controller shared by the physical Khepera IV driver
-(kheperaIV_client_driver.py) and the virtual/Webots one (khepera_driver.py).
+"""PID controller shared by the physical and virtual Khepera IV drivers.
 
-Extracted because it was byte-for-byte identical in both files (verified
-with a real diff before extracting, not assumed). Pure logic, no ROS
-dependency.
+Shared by the physical Khepera IV driver (kheperaIV_client_driver.py) and
+the virtual/Webots one (khepera_driver.py). Extracted because it was
+byte-for-byte identical in both files (verified with a real diff before
+extracting, not assumed). Pure logic, no ROS dependency.
 """
 
 

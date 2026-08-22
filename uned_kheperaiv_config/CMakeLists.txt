@@ -22,17 +22,17 @@ find_package(xacro REQUIRED)
 
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/urdf")
 
-foreach (INDEX RANGE 1 40)
-  if (${INDEX} EQUAL 0)
+foreach(INDEX RANGE 1 40)
+  if(${INDEX} EQUAL 0)
     set(SUFFIX "00")
     set(TOPIC_NS "khepera00")
-  elseif (${INDEX} LESS 10)
+  elseif(${INDEX} LESS 10)
     set(SUFFIX "0${INDEX}")
     set(TOPIC_NS "khepera0${INDEX}")
-  else ()
+  else()
     set(SUFFIX "${INDEX}")
     set(TOPIC_NS "khepera${INDEX}")
-  endif ()
+  endif()
   set(URDF_FILE "${CMAKE_CURRENT_BINARY_DIR}/urdf/khepera${SUFFIX}.urdf")
   add_custom_command(
     OUTPUT ${URDF_FILE}
@@ -43,7 +43,7 @@ foreach (INDEX RANGE 1 40)
     VERBATIM
   )
   add_custom_target(generate_urdf${SUFFIX} ALL DEPENDS ${URDF_FILE})
-endforeach ()
+endforeach()
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

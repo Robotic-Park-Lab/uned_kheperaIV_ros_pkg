@@ -26,11 +26,11 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""
-Agent used by khepera_driver.py (uned_kheperaiv_webots) for neighbour
-tracking in formation control: distance-based, fixed-point, or geometry
-(sphere/cone/ellipsoid, via multi_agent_pkg) targets, with RViz marker
-publishing.
+"""Agent used by khepera_driver.py (uned_kheperaiv_webots) for neighbour tracking.
+
+Used for neighbour tracking in formation control: distance-based,
+fixed-point, or geometry (sphere/cone/ellipsoid, via multi_agent_pkg)
+targets, with RViz marker publishing.
 
 This is a Khepera-owned copy, previously imported from
 uned_crazyflie_driver.crazyflie_agent (a real cross-repo dependency that

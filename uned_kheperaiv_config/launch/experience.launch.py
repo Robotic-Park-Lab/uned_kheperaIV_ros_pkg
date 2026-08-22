@@ -1,46 +1,69 @@
+# Copyright 2026 Robotic Park Lab
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+#    * Redistributions of source code must retain the above copyright
+#      notice, this list of conditions and the following disclaimer.
+#
+#    * Redistributions in binary form must reproduce the above copyright
+#      notice, this list of conditions and the following disclaimer in the
+#      documentation and/or other materials provided with the distribution.
+#
+#    * Neither the name of the Robotic Park Lab nor the names of its
+#      contributors may be used to endorse or promote products derived from
+#      this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 import os
-import pathlib
 import launch
 import yaml
 import datetime
-import shutil
-from yaml.loader import SafeLoader
 from launch_ros.actions import Node
 from launch import LaunchDescription
 from ament_index_python.packages import get_package_share_directory
 from launch.substitutions import LaunchConfiguration
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch.substitutions.path_join_substitution import PathJoinSubstitution
-from launch import LaunchDescription
 from webots_ros2_driver.webots_launcher import WebotsLauncher
 from webots_ros2_driver.webots_controller import WebotsController
 
 
 def get_ros2_nodes(context, *args):
     use_sim_time = LaunchConfiguration('use_sim_time', default=True)
-    distributed_architecture = False
-    # ExecuteProcess(cmd=['ros2', 'bag', 'record', '-a', '-o', e.strftime("%Y-%m-%d-%H-%M"), ], output='screen'),
     node_list = []
 
-    #-------------------#
+    # -------------------#
     #     Load File     #
-    #-------------------#
+    # -------------------#
     file = LaunchConfiguration('config_file')
     file_name = file.perform(context)
 
     general_package_dir = get_package_share_directory('uned_kheperaiv_config')
     config_path = os.path.join(general_package_dir, 'resources', file_name)
     with open(config_path, 'r') as file:
-            documents = yaml.safe_load(file)
-    
-    #------------------------#
+        documents = yaml.safe_load(file)
+
+    # ------------------------#
     #     Operation mode     #
-    #------------------------#
+    # ------------------------#
     if not documents['Operation']['mode'] == 'physical':
         use_sim_time = True
         if documents['Operation']['tool'] == 'Webots':
             webots = WebotsLauncher(
-                world=PathJoinSubstitution([general_package_dir, 'worlds', documents['Operation']['world']]),
+                world=PathJoinSubstitution(
+                    [general_package_dir, 'worlds', documents['Operation']['world']]),
                 mode='realtime',
                 ros2_supervisor=False
             )
@@ -66,10 +89,14 @@ def get_ros2_nodes(context, *args):
             node_list.append(reset_handler)
             '''
         elif documents['Operation']['tool'] == 'Gazebo':
-            world_path = os.path.join(general_package_dir, 'worlds', documents['Operation']['world'])
-            gazebo = ExecuteProcess(cmd=['gazebo', '--verbose', world_path, '-s', 'libgazebo_ros_init.so', '-s', 'libgazebo_ros_factory.so', '--ros-args',
-                ], output='screen'
-            )
+            world_path = os.path.join(general_package_dir, 'worlds',
+                                      documents['Operation']['world'])
+            gazebo = ExecuteProcess(cmd=['gazebo', '--verbose', world_path,
+                                         '-s', 'libgazebo_ros_init.so',
+                                         '-s', 'libgazebo_ros_factory.so',
+                                         '--ros-args',
+                                         ], output='screen'
+                                    )
 
             kill_ros2 = launch.actions.RegisterEventHandler(
                 event_handler=launch.event_handlers.OnProcessExit(
@@ -82,9 +109,9 @@ def get_ros2_nodes(context, *args):
             node_list.append(gazebo)
             node_list.append(kill_ros2)
 
-    #----------------------#
+    # ----------------------#
     #     Architecture     #
-    #----------------------#
+    # ----------------------#
     if documents['Architecture']['mode'] == 'centralized':
         # 'file' is optional: falls back to the experience file itself if the
         # architecture node doesn't need a separate config (real bug fixed
@@ -106,11 +133,10 @@ def get_ros2_nodes(context, *args):
         ))
     elif documents['Architecture']['mode'] == 'distributed_ros2':
         print('TO-DO: Distributed control in nodes')
-        distributed_architecture = True
 
-    #----------------#
+    # ----------------#
     #     Robots     #
-    #----------------#
+    # ----------------#
     physical_khepera_list = []
     for robot in documents['Robots']:
         if 'khepera' in documents['Robots'][robot]['name']:
@@ -128,14 +154,14 @@ def get_ros2_nodes(context, *args):
                 enable = documents['Robots'][robot].get('camera', 'false')
                 aux = aux.replace("config_cam", enable)
                 robot_controller = WebotsController(
-                            robot_name=documents['Robots'][robot]['name'],
-                            parameters=[
-                                {'robot_description': aux,
-                                'use_sim_time': use_sim_time,
-                                'set_robot_state_publisher': True},
-                            ],
-                            respawn=True
-                        )
+                    robot_name=documents['Robots'][robot]['name'],
+                    parameters=[
+                        {'robot_description': aux,
+                         'use_sim_time': use_sim_time,
+                         'set_robot_state_publisher': True},
+                    ],
+                    respawn=True
+                )
                 node_list.append(robot_controller)
 
             if not documents['Robots'][robot]['type'] == 'virtual':
@@ -146,24 +172,24 @@ def get_ros2_nodes(context, *args):
     if physical_khepera_list:
         for robot_id in physical_khepera_list:
             node_list.append(Node(
-                    package='uned_kheperaiv_driver',
-                    executable='kheperaIV_client_driver',
-                    name='driver',
-                    output='screen',
-                    namespace=robot_id,
-                    shell=True,
-                    emulate_tty=True,
-                    parameters=[
+                package='uned_kheperaiv_driver',
+                executable='kheperaIV_client_driver',
+                name='driver',
+                output='screen',
+                namespace=robot_id,
+                shell=True,
+                emulate_tty=True,
+                parameters=[
                         {'config': config_path},
                         # {'use_sim_time': use_sim_time},
                         {'id': robot_id}
-                    ]
-                )
+                ]
+            )
             )
 
-    #------------------------#
+    # ------------------------#
     #     CPU Monitoring     #
-    #------------------------#
+    # ------------------------#
     if documents['CPU_Monitoring']['enable']:
         node_list.append(Node(
             package=documents['CPU_Monitoring']['node']['pkg'],
@@ -171,17 +197,18 @@ def get_ros2_nodes(context, *args):
             name=documents['CPU_Monitoring']['node']['name'],
             output='screen',
             parameters=[{
-                'process_name' : documents['CPU_Monitoring']['processes'],
-                'process_period' : 0.5},
+                'process_name': documents['CPU_Monitoring']['processes'],
+                'process_period': 0.5},
             ],
         ))
-    
-    #--------------------#
+
+    # --------------------#
     #     Interfaces     #
-    #--------------------#
+    # --------------------#
     if documents['Interface']['enable']:
         if documents['Interface']['rqt']['enable']:
-            rqt_config_path = os.path.join(general_package_dir, 'rqt', documents['Interface']['rqt']['file'])
+            rqt_config_path = os.path.join(
+                general_package_dir, 'rqt', documents['Interface']['rqt']['file'])
             node_list.append(Node(
                 package=documents['Interface']['rqt']['node']['pkg'],
                 executable=documents['Interface']['rqt']['node']['executable'],
@@ -192,7 +219,8 @@ def get_ros2_nodes(context, *args):
                 arguments=['--perspective-file', rqt_config_path],
             ))
         if documents['Interface']['rviz2']['enable']:
-            rviz_config_path = os.path.join(general_package_dir, 'rviz', documents['Interface']['rviz2']['file'])
+            rviz_config_path = os.path.join(
+                general_package_dir, 'rviz', documents['Interface']['rviz2']['file'])
             node_list.append(Node(
                 package=documents['Interface']['rviz2']['node']['pkg'],
                 executable=documents['Interface']['rviz2']['node']['executable'],
@@ -207,10 +235,19 @@ def get_ros2_nodes(context, *args):
                 executable='static_transform_publisher',
                 output='screen',
                 name='RoboticPark',
-                arguments=['--yaw', '3.1415', '--frame-id', 'RoboticPark/base_link', '--child-frame-id', 'map'],
+                arguments=[
+                    '--yaw',
+                    '3.1415',
+                    '--frame-id',
+                    'RoboticPark/base_link',
+                    '--child-frame-id',
+                    'map'],
             ))
         if documents['Interface']['own']['enable']:
-            own_config_path = os.path.join(general_package_dir, 'resources', documents['Interface']['own']['file'])
+            own_config_path = os.path.join(
+                general_package_dir,
+                'resources',
+                documents['Interface']['own']['file'])
             node_list.append(Node(
                 package=documents['Interface']['own']['node']['pkg'],
                 executable=documents['Interface']['own']['node']['executable'],
@@ -220,37 +257,45 @@ def get_ros2_nodes(context, *args):
                 ],
                 arguments=['-d', own_config_path],
             ))
-    
-    #----------------------#
+
+    # ----------------------#
     #     Data Logging     #
-    #----------------------#
+    # ----------------------#
     if documents['Data_Logging']['enable']:
         e = datetime.datetime.now()
         if documents['Data_Logging']['all']:
             if documents['Data_Logging']['name'] == 'date':
                 node_list.append(ExecuteProcess(
-                    cmd=['ros2', 'bag', 'record', '-a', '-o', e.strftime("%Y-%m-%d-%H-%M")], output='screen', shell=True
+                    cmd=['ros2', 'bag', 'record', '-a', '-o', e.strftime("%Y-%m-%d-%H-%M")],
+                    output='screen', shell=True
                 ))
             else:
                 node_list.append(ExecuteProcess(
-                    cmd=['ros2', 'bag', 'record', '-a', '-o', documents['Data_Logging']['name']], output='screen', shell=True
+                    cmd=['ros2', 'bag', 'record', '-a', '-o', documents['Data_Logging']['name']],
+                    output='screen', shell=True
                 ))
         else:
             if documents['Data_Logging']['name'] == 'date':
                 node_list.append(ExecuteProcess(
-                    cmd=['ros2', 'bag', 'record', '-o', e.strftime("%Y-%m-%d-%H-%M"), documents['Data_Logging']['topics']], output='screen', shell=True
+                    cmd=['ros2', 'bag', 'record', '-o', e.strftime("%Y-%m-%d-%H-%M"),
+                         documents['Data_Logging']['topics']],
+                    output='screen', shell=True
                 ))
             else:
                 node_list.append(ExecuteProcess(
-                    cmd=['ros2', 'bag', 'record', '-o', documents['Data_Logging']['name'], documents['Data_Logging']['topics']], output='screen', shell=True
+                    cmd=['ros2', 'bag', 'record', '-o', documents['Data_Logging']['name'],
+                         documents['Data_Logging']['topics']],
+                    output='screen', shell=True
                 ))
-    
-    
-    #--------------------#
+
+    # --------------------#
     #     Supervisor     #
-    #--------------------#
+    # --------------------#
     if documents['Supervisor']['enable']:
-        topic_config_path = os.path.join(general_package_dir, 'resources', documents['Supervisor']['node']['file'])
+        topic_config_path = os.path.join(
+            general_package_dir,
+            'resources',
+            documents['Supervisor']['node']['file'])
         supervisor = Node(
             package='mars_supervisor_pkg',
             executable='supervisor_node',
@@ -261,7 +306,7 @@ def get_ros2_nodes(context, *args):
                 {'config': config_path},
             ],
         )
-        
+
         node_list.append(supervisor)
         '''
         kill_ros2_supervisor = launch.actions.RegisterEventHandler(
@@ -272,17 +317,20 @@ def get_ros2_nodes(context, *args):
                     ],
                 )
             )
-        
+
         node_list.append(kill_ros2_supervisor)
         '''
-    #---------------#
+    # ---------------#
     #     Other     #
-    #---------------#    
+    # ---------------#
     print('TO-DO: Physical nodes: Positioning System')
-    
+
     for agent in documents['Other']:
         if documents['Other'][agent]['enable']:
-            config_node_path = os.path.join(general_package_dir, 'resources', documents['Other'][agent]['file'])
+            config_node_path = os.path.join(
+                general_package_dir,
+                'resources',
+                documents['Other'][agent]['file'])
             node = Node(
                 package=documents['Other'][agent]['pkg'],
                 executable=documents['Other'][agent]['executable'],
@@ -295,6 +343,7 @@ def get_ros2_nodes(context, *args):
             node_list.append(node)
 
     return node_list
+
 
 def generate_launch_description():
     return LaunchDescription([
