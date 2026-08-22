@@ -16,6 +16,11 @@
   <depend>tf2_ros</depend>
   <depend>tf_transformations</depend>
   <depend>webots_ros2_driver</depend>
+  <!-- Local, in-workspace: Agent/PIDController shared with the physical
+       driver. Replaces a real cross-repo dependency on uned_crazyflie_driver
+       that used to be imported for Agent (never declared, since it was
+       never meant to be there, removed). -->
+  <depend>uned_kheperaiv_driver</depend>
   <!-- Package from another lab repo (RoboticPark), no rosdep key: must
        already be built in the same workspace. -->
   <depend>multi_agent_pkg</depend>

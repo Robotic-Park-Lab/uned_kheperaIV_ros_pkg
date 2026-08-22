@@ -17,78 +17,9 @@ import tf_transformations
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 
-from uned_crazyflie_driver.crazyflie_agent import Agent, Crazyflie_ROS2
+from uned_kheperaiv_driver.agent import Agent
+from uned_kheperaiv_driver.pid_controller import PIDController
 from multi_agent_pkg.lagrange_multipliers import Sphere, Cone, Ellipsoid
-
-class PIDController():
-    def __init__(self, Kp, Ki, Kd, Td, Nd, UpperLimit, LowerLimit, ai, co):
-        self.Kp = Kp
-        self.Ki = Ki
-        self.Kd = Kd
-        self.Td = Td
-        self.Nd = Nd
-        self.UpperLimit = UpperLimit
-        self.LowerLimit = LowerLimit
-        self.integral = 0
-        self.derivative = 0
-        self.error = [0.0, 0.0]
-        self.trigger_ai = ai
-        self.trigger_co = co
-        self.trigger_last_signal = 0.0
-        self.noise = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        self.past_time = 0.0
-        self.last_value = 0.0
-        self.th = 0.0
-
-    def update(self, dt):
-        P = self.Kp * self.error[0]
-        self.integral = self.integral + self.Ki*self.error[1]*dt
-        self.derivative = (self.Td/(self.Td+self.Nd+dt))*self.derivative+(self.Kd*self.Nd/(self.Td+self.Nd*dt))*(self.error[0]-self.error[1])
-        out = P + self.integral + self.derivative
-        
-        if not self.UpperLimit==0.0:
-            # out_i = out
-            if out>self.UpperLimit:
-                out = self.UpperLimit
-            if out<self.LowerLimit:
-                out = self.LowerLimit
-
-            # self.integral = self.integral - (out-out_i) * sqrt(self.Kp/self.Ki)
-        
-        self.error[1] = self.error[0]
-
-        self.last_value = out
-        
-        return out
-
-    def eval_threshold(self, signal, ref):
-        # Noise (Cn)
-        mean = signal/len(self.noise)
-        for i in range(0,len(self.noise)-2):
-            self.noise[i] = self.noise[i+1]
-            mean += self.noise[i]/len(self.noise)
-        
-        self.noise[len(self.noise)-1] = signal
-
-        trigger_cn = 0.0
-        for i in range(0,len(self.noise)-1):
-            if abs(self.noise[i]-mean) > trigger_cn:
-                trigger_cn = self.noise[i]-mean
-        trigger_cn = 0.0
-        # a
-        a = self.trigger_ai * abs(signal - ref)
-        if a > self.trigger_ai:
-            a = self.trigger_ai
-
-        # Threshold
-        self.th = self.trigger_co + a + trigger_cn
-        self.inc = abs(abs(ref-signal) - self.trigger_last_signal) 
-        # Delta Error
-        if (self.inc >= abs(self.th)):
-            self.trigger_last_signal = abs(ref-signal)
-            return True
-
-        return False
 
 
 ###################################
