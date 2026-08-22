@@ -18,12 +18,13 @@
 #include <SPI.h>
 #include <WiFiNINA.h>
 #include <Wire.h>
+#include "arduino_secrets.h"
 
 
 int cont=0;
 
-char ssid[] = "MOVISTAR_D647";
-char pass[] = "97A1C7B2468B5B85EEC2";
+char ssid[] = SECRET_SSID;
+char pass[] = SECRET_PASS;
 int status = WL_IDLE_STATUS;     // the WiFi radio's status
 
 void setup() {
