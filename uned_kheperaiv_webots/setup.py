@@ -31,18 +31,17 @@ setup(
     name=package_name,
     version='0.0.0',
     packages=[package_name],
-    data_files=package_files(data_files, ['resource/', 'launch/', 'worlds/']),
+    data_files=package_files(data_files, ['resources/', 'launch/', 'worlds/']),
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='kiko',
+    maintainer='Francisco José Mañas Álvarez',
     maintainer_email='fjmanas@dia.uned.es',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Virtual Khepera IV driver in Webots',
+    license='BSD-3-Clause',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'khepera_driver = uned_kheperaiv_webots.khepera_driver:main',
-            'turtlebot3burger_driver = uned_kheperaiv_webots.turtlebot3burger_driver:main'
         ],
     },
 )

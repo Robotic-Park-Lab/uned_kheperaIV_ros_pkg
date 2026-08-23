@@ -1,5 +1,5 @@
-# Documentación
+# Documentation
 
-EN DESARROLLO ...
+IN PROGRESS ...
 
-Carpeta destinada a almacenar todos los documentos asociados al paquete
+Folder for storing all documents associated with the package.

@@ -3,9 +3,18 @@
 <package format="3">
   <name>uned_kheperaiv_gui</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="fjmanas@dia.uned.es">kiko</maintainer>
-  <license>TODO: License declaration</license>
+  <description>PyQt graphical interface for handling a single Khepera IV robot</description>
+  <maintainer email="fjmanas@dia.uned.es">Francisco José Mañas Álvarez</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <depend>rclpy</depend>
+  <depend>python3-pyqt5</depend>
+  <depend>qt_gui</depend>
+  <depend>rqt_gui_py</depend>
+  <depend>rqt_plot</depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-matplotlib</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

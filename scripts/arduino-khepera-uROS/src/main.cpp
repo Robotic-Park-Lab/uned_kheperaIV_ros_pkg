@@ -2,11 +2,12 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <WiFiNINA.h>
+#include "arduino_secrets.h"
 
 int cont=0;
 
-char ssid[] = "MOVISTAR_D647";
-char password[] = "97A1C7B2468B5B85EEC2";
+char ssid[] = SECRET_SSID;
+char password[] = SECRET_PASS;
 IPAddress ip(192, 168, 0, 15);
 IPAddress gateway(192, 168, 0, 1);
 IPAddress subnet(255, 255, 0, 0);

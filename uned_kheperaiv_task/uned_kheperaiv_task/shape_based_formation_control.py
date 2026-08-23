@@ -1,3 +1,31 @@
+# Copyright 2026 Robotic Park Lab
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+#    * Redistributions of source code must retain the above copyright
+#      notice, this list of conditions and the following disclaimer.
+#
+#    * Redistributions in binary form must reproduce the above copyright
+#      notice, this list of conditions and the following disclaimer in the
+#      documentation and/or other materials provided with the distribution.
+#
+#    * Neither the name of the Robotic Park Lab nor the names of its
+#      contributors may be used to endorse or promote products derived from
+#      this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 import rclpy
 
 from rclpy.node import Node
@@ -6,6 +34,7 @@ from geometry_msgs.msg import Pose
 
 agent_list = list()
 
+
 class Agent():
     def __init__(self, parent, x, y, id):
         self.id = id
@@ -13,11 +42,13 @@ class Agent():
         self.y = y
         self.pose = Pose()
         self.parent = parent
-        self.sub_pose = self.parent.create_subscription(Pose, self.id + '/pose', self.gtpose_callback, 10)
+        self.sub_pose = self.parent.create_subscription(
+            Pose, self.id + '/pose', self.gtpose_callback, 10)
 
     def gtpose_callback(self, msg):
         self.pose = msg
-    
+
+
 class KheperaIVDriver(Node):
     def __init__(self):
         super().__init__('formation_control')
@@ -35,21 +66,20 @@ class KheperaIVDriver(Node):
 
         self.initialize()
         self.timer = self.create_timer(0.02, self.task_manager)
-        
 
     def initialize(self):
         self.get_logger().info('Formation Control::inicialize() ok.')
         # Read Params
         self.yaml_file = self.get_parameter('config_file').get_parameter_value().string_value
         aux = self.get_parameter('agents').get_parameter_value().string_value
-        id_array =  aux.split(', ')
+        id_array = aux.split(', ')
         aux = self.get_parameter('agent_x').get_parameter_value().string_value
         x_array = aux.split(', ')
         aux = self.get_parameter('agent_y').get_parameter_value().string_value
         y_array = aux.split(', ')
-        for i in range(int(len(id_array)),0,-1):
-            agent_str = id_array[i-1]
-            robot = Agent(self, float(x_array[i-1]), float(y_array[i-1]), agent_str)
+        for i in range(int(len(id_array)), 0, -1):
+            agent_str = id_array[i - 1]
+            robot = Agent(self, float(x_array[i - 1]), float(y_array[i - 1]), agent_str)
             agent_list.append(robot)
 
         self.groundtruth = Pose()
@@ -74,14 +104,15 @@ class KheperaIVDriver(Node):
             for robot in agent_list:
                 dx += robot.x - (self.groundtruth.position.x - robot.pose.position.x)
                 dy += robot.y - (self.groundtruth.position.y - robot.pose.position.y)
-            self.integral_x += (1/(len(agent_list)*1.0))*self.x_error*0.02
-            self.integral_y += (1/(len(agent_list)*1.0))*self.y_error*0.02
-            msg.position.x += (dx/len(agent_list))#  + self.integral_x 
-            msg.position.y += (dy/len(agent_list))#  + self.integral_y
+            self.integral_x += (1 / (len(agent_list) * 1.0)) * self.x_error * 0.02
+            self.integral_y += (1 / (len(agent_list) * 1.0)) * self.y_error * 0.02
+            msg.position.x += (dx / len(agent_list))  # + self.integral_x
+            msg.position.y += (dy / len(agent_list))  # + self.integral_y
             self.x_error = dx
             self.y_error = dy
 
             self.ref_pose.publish(msg)
+
 
 def main(args=None):
     rclpy.init(args=args)

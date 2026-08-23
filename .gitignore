@@ -1,3 +1,7 @@
+# Local Arduino/ESP32 WiFi credentials -- never commit real ones, see the
+# arduino_secrets.h.example next to each sketch.
+arduino_secrets.h
+
 devel/
 logs/
 build/

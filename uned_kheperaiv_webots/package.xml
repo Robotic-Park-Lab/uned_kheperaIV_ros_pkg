@@ -3,13 +3,29 @@
 <package format="3">
   <name>uned_kheperaiv_webots</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="fjmanas@dia.uned.es">kiko</maintainer>
-  <license>TODO: License declaration</license>
+  <description>Virtual Khepera IV driver in Webots</description>
+  <maintainer email="fjmanas@dia.uned.es">Francisco José Mañas Álvarez</maintainer>
+  <license>BSD-3-Clause</license>
 
   <depend>rclpy</depend>
+  <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf_transformations</depend>
   <depend>webots_ros2_driver</depend>
+  <!-- Local, in-workspace: Agent/PIDController shared with the physical
+       driver. Replaces a real cross-repo dependency on uned_crazyflie_driver
+       that used to be imported for Agent (never declared, since it was
+       never meant to be there, removed). -->
+  <depend>uned_kheperaiv_driver</depend>
+  <!-- Package from another lab repo (RoboticPark), no rosdep key: must
+       already be built in the same workspace. -->
+  <depend>multi_agent_pkg</depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
