@@ -15,7 +15,7 @@ ROS 2 packages and configuration files for teleoperating and simulating the Khep
 - **[uned_kheperaiv_gui](uned_kheperaiv_gui/README.md)**. ROS 2 package. PyQt graphical interface for handling a single Khepera IV robot.
 - **[uned_kheperaiv_task](uned_kheperaiv_task/README.md)**. ROS 2 package. High-level mission/task nodes: distance-based and shape-based formation control, plus a Gazebo-specific formation driver.
 - **[uned_kheperaiv_webots](uned_kheperaiv_webots/README.md)**. ROS 2 package. Virtual Khepera IV driver in Webots.
-- **uned_vicon_gazebo**. ROS 2 package. Vicon-to-Gazebo pose bridge (legacy path, revisit once the Gazebo update above is confirmed working).
+- **[uned_vicon_gazebo](uned_vicon_gazebo/README.md)**. ROS 2 package. Vicon-to-Gazebo pose bridge (legacy path, revisit once the Gazebo update above is confirmed working).
 
 ## Installation :book:
 
