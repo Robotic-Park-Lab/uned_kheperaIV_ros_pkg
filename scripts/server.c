@@ -2,8 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h> 
+#include <errno.h>
+#include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <khepera/khepera.h>
 #include <signal.h>
@@ -69,6 +71,7 @@ int main(int argc, char *argv[]) {
   socklen_t clilen;
   char buffer[256];
   struct sockaddr_in serv_addr, cli_addr;
+  struct timeval rcv_tv;
 
   // Drive variables
   int out=0,speed=DEFAULT_SPEED,vsl,vsr,anymove=0;
@@ -163,128 +166,163 @@ int main(int argc, char *argv[]) {
   listen(sockfd,5);
   clilen = sizeof(cli_addr);
 
-  // Accept an incoming connection
-  newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-  if (newsockfd < 0) {
-    perror("ERROR on accept");
-    exit(1);
-  }
-
-  // Ready visual signal
-  kh4_ResetEncoders(dsPic);
-  kh4_SetMode(kh4RegSpeed,dsPic );
-  kh4_SetRGBLeds(0,0,255,0,0,255,0,0,255, dsPic);
-
-  printf("Connected to ROS2 Client\r\n");
-
-  // Main loop
+  // Outer loop: accept a (new) ROS 2 client. Previously accept() was
+  // called once, outside any loop -- if the ROS 2 side ever dropped and
+  // reconnected (network hiccup, node restart), the robot had no way to
+  // accept the new connection and stayed wedged on the dead socket until
+  // this program was killed and restarted by hand on the robot. That was
+  // one of the two root causes behind the intermittent "communication
+  // hangs" (the other is the read() timeout added below).
   while (quitReq==0){
 
-    kh4_get_position(&pl,&pr,dsPic);
+    printf("Waiting for ROS2 Client...\r\n");
+    newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+    if (newsockfd < 0) {
+      if (quitReq) break;
+      perror("ERROR on accept");
+      continue;
+    }
+
+    // Give the client socket a receive timeout so a silent/stalled link
+    // can no longer freeze the odometry/control loop below: read() now
+    // returns EAGAIN/EWOULDBLOCK on a quiet socket instead of blocking
+    // forever. 50 ms bounds how stale the control loop can get; tune if
+    // needed once verified on the real robot.
+    rcv_tv.tv_sec = 0;
+    rcv_tv.tv_usec = 50000;
+    setsockopt(newsockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *) &rcv_tv, sizeof(rcv_tv));
+
+    // Ready visual signal
     kh4_ResetEncoders(dsPic);
-    d = (pr + pl)*KH4_PULSE_TO_MM/2000;
-    w = (pr - pl)*KH4_PULSE_TO_MM/105;
-    xp = xp + d*cos(theta);
-    yp = yp + d*sin(theta);
-    theta = theta + w;
-    printf("Xp: %.3f  Yp %.3f\n", xp, yp);
-    if(init_c == 'y'){
-      v = ((xg-xp)*cos(theta) + (yg-yp)*sin(theta))*10;
-      if(v<0.02 && v>-0.02){
-        v = 0.0;
+    kh4_SetMode(kh4RegSpeed,dsPic );
+    kh4_SetRGBLeds(0,0,255,0,0,255,0,0,255, dsPic);
+
+    printf("Connected to ROS2 Client\r\n");
+    init_c = 'n'; // fresh session: no goal-tracking active until a 'g' arrives
+
+    // Inner loop: serve this client until it disconnects or errors out,
+    // then fall back to the outer loop to accept the next one.
+    while (quitReq==0){
+
+      kh4_get_position(&pl,&pr,dsPic);
+      kh4_ResetEncoders(dsPic);
+      d = (pr + pl)*KH4_PULSE_TO_MM/2000;
+      w = (pr - pl)*KH4_PULSE_TO_MM/105;
+      xp = xp + d*cos(theta);
+      yp = yp + d*sin(theta);
+      theta = theta + w;
+      printf("Xp: %.3f  Yp %.3f\n", xp, yp);
+      if(init_c == 'y'){
+        v = ((xg-xp)*cos(theta) + (yg-yp)*sin(theta))*10;
+        if(v<0.02 && v>-0.02){
+          v = 0.0;
+        }
+        alfa = atan2(yg-yp, xg-xp);
+        w0 = 1 * sin(alfa-theta);
+        printf("onboard cmd: %.3f %.3f \n", v, w0);
+        vel_r = (int)((v+w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
+        vel_l = (int)((v-w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
+        kh4_set_speed(vel_l, vel_r,dsPic );
       }
-      alfa = atan2(yg-yp, xg-xp);
-      w0 = 1 * sin(alfa-theta);
-      printf("onboard cmd: %.3f %.3f \n", v, w0);
-      vel_r = (int)((v+w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
-      vel_l = (int)((v-w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
-      kh4_set_speed(vel_l, vel_r,dsPic );
-    }
-    // Clear the buffer
-    memset(buffer, 0, 256);
+      // Clear the buffer
+      memset(buffer, 0, 256);
 
-    // Read data from the client
-    n = read(newsockfd, buffer, 255);
-    if (n < 0){
-      perror("ERROR reading from socket");
-      exit(1);
-    }
+      // Read data from the client (bounded by SO_RCVTIMEO above)
+      n = read(newsockfd, buffer, 255);
+      if (n < 0){
+        if (errno == EAGAIN || errno == EWOULDBLOCK){
+          // No command arrived this cycle -- not an error, keep controlling.
+          continue;
+        }
+        perror("ERROR reading from socket");
+        break; // drop this client, go back to accept()
+      }
+      if (n == 0){
+        // Client closed the connection cleanly.
+        printf("ROS2 Client disconnected\r\n");
+        break;
+      }
 
-    // Check the command received from the client
-    if (buffer[0]=='d'){
-      sscanf(buffer,"%*c %f %f",&v,&w0);
-      printf("cmd: %.3f %.3f \n", v, w0);
-      vel_r = (int)((v+w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
-      vel_l = (int)((v-w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
-      // kh4_set_speed(vel_l, vel_r,dsPic );
-    }
-    if (buffer[0]=='g'){
-      sscanf(buffer,"%*c %f %f",&xg,&yg);
-      init_c = 'y';
-      printf("Goal Pose: %.3f %.3f \n", xg, yg);
-    }
-    if (buffer[0]=='i'){
-      sscanf(buffer,"%*c %f %f",&xp,&yp);
-      printf("Pose: %.3f %.3f \n", xp, yp);
-    }
-    else if (strcmp(buffer, "stop") == 0){
-      printf("Stop move\n");
-      kh4_set_speed(0 ,0,dsPic );
-    }
-    else if (buffer[0]=='p'){
-      // sscanf(buffer,"%*c %f %f",&xp,&yp);
-      // kh4_get_position(&pl,&pr,dsPic);
-      // kh4_ResetEncoders(dsPic);
-      // d = (pr + pl)*KH4_PULSE_TO_MM/2000;
-      // w = (pr - pl)*KH4_PULSE_TO_MM/105;
-      //theta =+ w;
-      //xp =+ d; // *cos(theta);
-      // yp =+ d; // *sin(theta);
-      // Send the data string to the client
-      char data_str[256];
-      sprintf(data_str, "%.4f,%.4f", d,theta);
-      write(newsockfd, data_str, strlen(data_str));
-      //printf("cmd: %.6f %.6f \n", &d, &w);
-      
-    }
-    else if (strcmp(buffer, "reset_pose") == 0){
-      sscanf(buffer,"%*c %d %d",&sl,&sr);
-      kh4_SetMode(kh4RegPosition,dsPic );
-			kh4_set_position(sl,sr, dsPic);
-    }
-    else if (strcmp(buffer, "get_data") == 0){
-      // Read data from the sensors
-      // get and print us sensors
-		  kh4_measure_us(Buffer,dsPic);
- 		  for (i=0;i<5;i++){
- 			  usvalues[i] = (short)(Buffer[i*2] | Buffer[i*2+1]<<8);                                
- 		  }
- 		
-		  printf("\nUS sensors : distance [cm]\
+      // Check the command received from the client
+      if (buffer[0]=='d'){
+        sscanf(buffer,"%*c %f %f",&v,&w0);
+        printf("cmd: %.3f %.3f \n", v, w0);
+        vel_r = (int)((v+w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
+        vel_l = (int)((v-w0*0.5*10.54)/(KH4_SPEED_TO_MM_S/10));
+        // Only drive from cmd_vel when there is no active goal-tracking
+        // session (see the init_c=='y' block above): letting both write
+        // to the motors in the same cycle would fight each other. This
+        // call used to be commented out entirely, so cmd_vel never moved
+        // the physical robot at all -- verify this precedence on real
+        // hardware before relying on it operationally.
+        if (init_c != 'y'){
+          kh4_set_speed(vel_l, vel_r,dsPic );
+        }
+      }
+      if (buffer[0]=='g'){
+        sscanf(buffer,"%*c %f %f",&xg,&yg);
+        init_c = 'y';
+        printf("Goal Pose: %.3f %.3f \n", xg, yg);
+      }
+      if (buffer[0]=='i'){
+        sscanf(buffer,"%*c %f %f",&xp,&yp);
+        printf("Pose: %.3f %.3f \n", xp, yp);
+      }
+      else if (strcmp(buffer, "stop") == 0){
+        printf("Stop move\n");
+        kh4_set_speed(0 ,0,dsPic );
+      }
+      else if (buffer[0]=='p'){
+        // Send the data string to the client
+        char data_str[256];
+        sprintf(data_str, "%.4f,%.4f", d,theta);
+        write(newsockfd, data_str, strlen(data_str));
+      }
+      else if (strcmp(buffer, "reset_pose") == 0){
+        sscanf(buffer,"%*c %d %d",&sl,&sr);
+        kh4_SetMode(kh4RegPosition,dsPic );
+        kh4_set_position(sl,sr, dsPic);
+      }
+      else if (strcmp(buffer, "get_data") == 0){
+        // Read data from the sensors
+        // get and print us sensors
+        kh4_measure_us(Buffer,dsPic);
+        for (i=0;i<5;i++){
+          usvalues[i] = (short)(Buffer[i*2] | Buffer[i*2+1]<<8);
+        }
+
+        printf("\nUS sensors : distance [cm]\
               \nleft 90   : %4d\
               \nleft 45   : %4d\
-		          \nfront     : %4d\
+              \nfront     : %4d\
               \nright 45  : %4d\
-              \nright 90  : %4d\n", usvalues[0],usvalues[1],usvalues[2],usvalues[3],usvalues[4]); 
-		  usleep(20000); // wait 20ms
+              \nright 90  : %4d\n", usvalues[0],usvalues[1],usvalues[2],usvalues[3],usvalues[4]);
+        usleep(20000); // wait 20ms
 
-      // Convert the sensor data to a string
-      char data_str[256];
-      sprintf(data_str, "%d,%d,%d,%d,%d", usvalues[0], usvalues[1], usvalues[2], usvalues[3], usvalues[4]);
+        // Convert the sensor data to a string
+        char data_str[256];
+        sprintf(data_str, "%d,%d,%d,%d,%d", usvalues[0], usvalues[1], usvalues[2], usvalues[3], usvalues[4]);
 
-      // Send the data string to the client
-      write(newsockfd, data_str, strlen(data_str));
+        // Send the data string to the client
+        write(newsockfd, data_str, strlen(data_str));
+      }
+
     }
-    
+
+    // This client is gone: stop the robot for safety and close its
+    // socket before going back to accept() for the next one.
+    kh4_set_speed(0 ,0 ,dsPic);
+    kh4_SetMode( kh4RegIdle,dsPic );
+    close(newsockfd);
   }
+
   kh4_set_speed(0 ,0 ,dsPic); // stop robot
   kh4_SetMode( kh4RegIdle,dsPic ); // set motors to idle
   kh4_SetRGBLeds(0,0,0,0,0,0,0,0,0,dsPic); // clear rgb leds because consumes energy
 
   // Close the socket
-  close(newsockfd);
   close(sockfd);
 
- return 0;  
+ return 0;
 }
 

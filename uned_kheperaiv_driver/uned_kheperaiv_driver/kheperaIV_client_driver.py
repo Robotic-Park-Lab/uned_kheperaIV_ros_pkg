@@ -101,11 +101,6 @@ class Agent():
     def gtpose_callback(self, msg):
         self.pose = msg.pose
         self.neighbour_update = True
-        if self.parent.onboard and False:
-            self.parent.get_logger().debug('Update Neighbour pose')
-            command = "m " + str(self.idn) + " " + str(round(self.pose.position.x, 3)) + " " + \
-                str(round(self.pose.position.y, 3)) + " " + str(round(self.pose.position.z, 3))
-            self.parent.sock.sendall(bytes(command, 'utf-8'))
 
         line = Marker()
         p0 = Point()
@@ -313,8 +308,10 @@ class KheperaIVDriver(Node):
                     self.agent_list.append(robot)
 
         self.connect_to_robot()
+        # Single, permanent reconnect timer -- see _mark_disconnected() for
+        # why this replaces the old per-failure create_timer() calls.
+        self.create_timer(5.0, self.reconnect_attempt)
         self.imu_timer = self.create_timer(1.0 / self.control_rate, self.get_imu)
-        self.ultrasound_timer = self.create_timer(1.0 / self.control_rate, self.get_us)
 
     def connect_to_robot(self):
         """Establece conexión TCP con el robot."""
@@ -330,13 +327,28 @@ class KheperaIVDriver(Node):
         except Exception as e:
             self.get_logger().error(f"Error de conexión: {str(e)}")
             self.connected = False
-            self.reconnect_timer = self.create_timer(5.0, self.reconnect_attempt)
 
     def reconnect_attempt(self):
-        """Intenta reconectar al robot."""
+        """Intenta reconectar al robot (temporizador único, creado en initialize())."""
         if not self.connected:
             self.get_logger().info("Intentando reconectar...")
             self.connect_to_robot()
+
+    def _mark_disconnected(self, reason):
+        """Marca el enlace como caído tras un fallo de E/S.
+
+        Antes, solo connect_to_robot() y send_command() armaban un
+        reconnect_timer al fallar; get_pose() y get_imu() se limitaban a
+        poner self.connected = False sin programar ningún reintento, así
+        que un simple timeout de red en cualquiera de los dos dejaba el
+        nodo callado para siempre (una de las causas confirmadas de que
+        "se quede colgada" la comunicación). Ahora toda ruta de fallo pasa
+        por aquí, y el reconnect_timer único creado en initialize() es
+        quien reintenta -- no hace falta crear timers nuevos por fallo.
+        """
+        if self.connected:
+            self.get_logger().warn(f"Comunicación perdida ({reason})")
+        self.connected = False
 
     def send_command(self, command):
         """Envía comando al robot con manejo de errores."""
@@ -345,10 +357,11 @@ class KheperaIVDriver(Node):
             try:
                 self.sock.sendall(command.encode('utf-8'))
             except Exception as e:
-                self.get_logger().error(f"Error enviando comando: {str(e)}")
-                self.connected = False
-                self.sock.close()
-                self.reconnect_attempt()
+                try:
+                    self.sock.close()
+                except OSError:
+                    pass
+                self._mark_disconnected(f"error enviando comando: {e}")
 
     def cmd_callback(self, msg):
         # Read a command
@@ -427,6 +440,8 @@ class KheperaIVDriver(Node):
                     PoseStamp.pose.orientation.w = self.pose.pose.orientation.w
                     PoseStamp.header.stamp = self.get_clock().now().to_msg()
                     self.path.poses.append(PoseStamp)
+                    if len(self.path.poses) > self.max_path_length:
+                        self.path.poses.pop(0)
                     self.path_pub.publish(self.path)
 
                 if (np.linalg.norm(delta) > self.threshold and np.linalg.norm(
@@ -434,11 +449,12 @@ class KheperaIVDriver(Node):
                     self.get_logger().debug('Delta %.3f' % np.linalg.norm(delta))
                     self.pose = msg
                     self.pose.pose.position.z = 0.00
-                    # noqa: uses position.x twice instead of position.x/position.y --
-                    # possible real bug in the "i" (goal) command protocol, not
-                    # guessed at here; needs checking against the actual onboard
-                    # server.c protocol before changing on real hardware.
-                    command = f"i {msg.pose.position.x:.3f} {msg.pose.position.x:.3f}\n"
+                    # Fixed: was sending position.x twice instead of x/y --
+                    # confirmed against server.c's "i" handler
+                    # (sscanf(buffer,"%*c %f %f",&xp,&yp)), which expects X
+                    # and Y separately and was silently having its onboard
+                    # Y odometry overwritten with X on every correction.
+                    command = f"i {msg.pose.position.x:.3f} {msg.pose.position.y:.3f}\n"
                     self.send_command(command)
                     [roll,
                      pitch,
@@ -474,62 +490,66 @@ class KheperaIVDriver(Node):
                          self.theta, self.theta_vicon))
 
     def get_pose(self):
-        if self.init_pose and self.connected:
-            try:
-                self.send_command("p")
-                data = self.sock.recv(1024).decode('utf-8').strip()
-                if data:
-                    x, y, theta = map(float, data.split(','))
-                    # self.update_pose(x, y, theta)
-            except Exception as e:
-                self.get_logger().warn(f"Error obteniendo pose: {str(e)}")
-                self.connected = False
-            try:
-                delta = sqrt((pow(self.pose.pose.position.x - x, 2) +
-                             pow(self.pose.pose.position.y - y, 2)))
-                self.get_logger().debug(
-                    'X: %.2f Y: %.2f x: %.2f y: %.2f DELTA: %.2f' %
-                    (self.pose.pose.position.x, self.pose.pose.position.y, x, y, delta))
-                if (self.communication or delta > self.threshold) and delta < 0.2:
-                    self.pose.pose.position = Point(x=x, y=y, z=0.0)
-                    q = quaternion_from_euler(0, 0, theta)
-                    self.pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
-                    self.pose.header.stamp = self.get_clock().now().to_msg()
-                    # self.pose.pose.orientation.z = np.sin(theta/2)
-                    # self.pose.pose.orientation.w = np.cos(theta/2)
-                    self.get_logger().debug('Xp: %.3f, Yp: %.3f' %
-                                            (self.pose.pose.position.x, self.pose.pose.position.y))
-                    self.pose_pub.publish(self.pose)
+        if not (self.init_pose and self.connected):
+            return
 
-                    t_base = TransformStamped()
-                    t_base.header = self.pose.header
-                    t_base.child_frame_id = self.id + '/base_link'
-                    t_base.transform.translation.x = self.pose.pose.position.x
-                    t_base.transform.translation.y = self.pose.pose.position.y
-                    t_base.transform.translation.z = 0.0
-                    t_base.transform.rotation = self.pose.pose.orientation
-                    self.tfbr.sendTransform(t_base)
+        try:
+            self.send_command("p")
+            data = self.sock.recv(1024).decode('utf-8').strip()
+        except Exception as e:
+            self._mark_disconnected(f"error obteniendo pose: {e}")
+            return
 
-                    if self.path_enable:
-                        self.path.header.stamp = self.get_clock().now().to_msg()
-                        self.path.poses.append(self.pose)
-                        # Limitar tamaño para eficiencia
-                        if len(self.path.poses) > self.max_path_length:
-                            self.path.poses.pop(0)  # Eliminar el punto más antiguo
-                        self.path_pub.publish(self.path)
-            except BaseException:
-                pass
+        if not data:
+            return
+        try:
+            x, y, theta = map(float, data.split(','))
+        except ValueError:
+            self.get_logger().warn(f"Trama de pose malformada: {data!r}")
+            return
 
-            # TO-DO
-            # if self.neighbour_update and self.onboard:
-            #     self.neighbour_update = False
-            #     for agent in self.agent_list:
-            #         command = ("m " + str(agent.idn) + " "
-            #                    + str(round(agent.pose.pose.position.x, 3)) + " "
-            #                    + str(round(agent.pose.pose.position.y, 3)) + " "
-            #                    + str(round(agent.pose.pose.position.z, 3)))
-            #         self.sock.sendall(bytes(command, 'utf-8'))
-            #         time.sleep(0.05)
+        delta = sqrt((pow(self.pose.pose.position.x - x, 2) +
+                     pow(self.pose.pose.position.y - y, 2)))
+        self.get_logger().debug(
+            'X: %.2f Y: %.2f x: %.2f y: %.2f DELTA: %.2f' %
+            (self.pose.pose.position.x, self.pose.pose.position.y, x, y, delta))
+        if not ((self.communication or delta > self.threshold) and delta < 0.2):
+            return
+
+        self.pose.pose.position = Point(x=x, y=y, z=0.0)
+        q = quaternion_from_euler(0, 0, theta)
+        self.pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+        self.pose.header.stamp = self.get_clock().now().to_msg()
+        self.get_logger().debug('Xp: %.3f, Yp: %.3f' %
+                                (self.pose.pose.position.x, self.pose.pose.position.y))
+        self.pose_pub.publish(self.pose)
+
+        t_base = TransformStamped()
+        t_base.header = self.pose.header
+        t_base.child_frame_id = self.id + '/base_link'
+        t_base.transform.translation.x = self.pose.pose.position.x
+        t_base.transform.translation.y = self.pose.pose.position.y
+        t_base.transform.translation.z = 0.0
+        t_base.transform.rotation = self.pose.pose.orientation
+        self.tfbr.sendTransform(t_base)
+
+        if self.path_enable:
+            self.path.header.stamp = self.get_clock().now().to_msg()
+            self.path.poses.append(self.pose)
+            if len(self.path.poses) > self.max_path_length:
+                self.path.poses.pop(0)  # Eliminar el punto más antiguo
+            self.path_pub.publish(self.path)
+
+        # TO-DO
+        # if self.neighbour_update and self.onboard:
+        #     self.neighbour_update = False
+        #     for agent in self.agent_list:
+        #         command = ("m " + str(agent.idn) + " "
+        #                    + str(round(agent.pose.pose.position.x, 3)) + " "
+        #                    + str(round(agent.pose.pose.position.y, 3)) + " "
+        #                    + str(round(agent.pose.pose.position.z, 3)))
+        #         self.sock.sendall(bytes(command, 'utf-8'))
+        #         time.sleep(0.05)
 
     def order_callback(self, msg):
         self.get_logger().debug('Order: "%s"' % msg.data)
@@ -566,40 +586,30 @@ class KheperaIVDriver(Node):
             pass
 
     def get_imu(self):
-        if self.connected:
-            try:
-                self.send_command("s")
-                data = self.sock.recv(1024).decode('utf-8').strip()
-                if data:
-                    ax, ay, az, wx, wy, wz = map(float, data.split(','))
-                msg = Imu()
-                msg.linear_acceleration = Vector3(x=ax, y=ay, z=az)
-                msg.angular_velocity = Vector3(x=wx, y=wy, z=wz)
-                msg.header.stamp = self.get_clock().now().to_msg()
-                msg.header.frame_id = self.id + '/base_link'
-                self.imu_pub.publish(msg)
-                # self.get_logger().info('Sensors: %s' % data)
-            except Exception as e:
-                self.get_logger().warn(f"Error obteniendo imu: {str(e)}")
-                self.connected = False
+        if not self.connected:
+            return
 
-    def get_us(self):
-        if self.connected and False:
-            try:
-                self.send_command("u")
-                data = self.sock.recv(1024).decode('utf-8').strip()
-                if data:
-                    ax, ay, az, wx, wy, wz = map(float, data.split(','))
-                msg = Imu()
-                msg.linear_acceleration = Vector3(x=ax, y=ay, z=az)
-                msg.angular_velocity = Vector3(x=wx, y=wy, z=wz)
-                msg.header.stamp = self.get_clock().now().to_msg()
-                msg.header.frame_id = self.id + '/base_link'
-                self.imu_pub.publish(msg)
-                self.get_logger().info('Sensors: %s' % data)
-            except Exception as e:
-                self.get_logger().warn(f"Error obteniendo US: {str(e)}")
-                self.connected = False
+        try:
+            self.send_command("s")
+            data = self.sock.recv(1024).decode('utf-8').strip()
+        except Exception as e:
+            self._mark_disconnected(f"error obteniendo imu: {e}")
+            return
+
+        if not data:
+            return
+        try:
+            ax, ay, az, wx, wy, wz = map(float, data.split(','))
+        except ValueError:
+            self.get_logger().warn(f"Trama de IMU malformada: {data!r}")
+            return
+
+        msg = Imu()
+        msg.linear_acceleration = Vector3(x=ax, y=ay, z=az)
+        msg.angular_velocity = Vector3(x=wx, y=wy, z=wz)
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.id + '/base_link'
+        self.imu_pub.publish(msg)
 
     ###############
     #    Tasks    # TO-DO
